@@ -13,7 +13,7 @@
 void setRGB(png_byte *ptr, int val);
 int writeImage(char* filename, int width, int height, int *buffer, char* title);
 
-int maxIterations = 100;
+long maxIterations = 2500;
 
 int main(int argc, char **argv)
 {
@@ -25,8 +25,13 @@ int main(int argc, char **argv)
 	w = 0;
 	h = 0;
 
+	double centerx = -0.5;
+	double centery = 0;
+
+	double zoom = 1.0;
+
 	int c;
-	while ((c = getopt(argc, argv, ":w:h:")) != -1) {
+	while ((c = getopt(argc, argv, ":w:h:x:y:z:i:")) != -1) {
 		switch(c) {
 		case 'w':
 			errno = 0;
@@ -44,11 +49,45 @@ int main(int argc, char **argv)
 				exit(EXIT_FAILURE);
 			}
 			break;
+		case 'x':
+			errno = 0;
+			centerx = strtod(optarg, NULL);
+			if (errno != 0) {
+				fprintf(stderr, "Invalid center x coordinate\n");
+				exit(EXIT_FAILURE);
+			}
+			break;
+		case 'y':
+			errno = 0;
+			centery = strtod(optarg, NULL);
+			if (errno != 0) {
+				fprintf(stderr, "Invalid center y coordinate\n");
+				exit(EXIT_FAILURE);
+			}
+			break;
+		case 'z':
+			errno = 0;
+			zoom = strtod(optarg, NULL);
+			if (errno != 0 || zoom<1.0) {
+				fprintf(stderr, "Invalid zoom value\n");
+				exit(EXIT_FAILURE);
+			}
+			break;
+		case 'i':
+			errno = 0;
+			maxIterations = strtol(optarg, NULL, 10);
+			if (errno != 0 || maxIterations < 50 || maxIterations > 100000) {
+				fprintf(stderr, "Invalid iterations\n");
+				exit(EXIT_FAILURE);
+			}
+			break;
 		case ':':
 			printf("Argument requires a value.\n");
+			exit(EXIT_FAILURE);
 			break;
 		case '?':
 			printf("Unknown argument: %c\n", optopt);
+			exit(EXIT_FAILURE);
 			break;
 		}
 	}
@@ -69,11 +108,10 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	double centerx = -0.5;
-	double centery = 0;
+
 
 	// At a zoom of 1, we want a horizontal span of 5.0.
-	double zoom = 1.0;
+	
 	double hspan = 4.5 / zoom;
 	double minx = centerx - (hspan / 2.0);
 	double maxx = centerx + (hspan / 2.0);
