@@ -1,9 +1,14 @@
+/* Request POSIX.1-2008-compliant interfaces. */
+#define _POSIX_C_SOURCE 200809L
+
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
+
 #include <png.h>
 
-#define W 1920
-#define H 1080
+#define DEFAULT_WIDTH 1920
 
 void setRGB(png_byte *ptr, int val);
 int writeImage(char* filename, int width, int height, int *buffer, char* title);
@@ -12,12 +17,50 @@ int maxIterations = 100;
 
 int main(int argc, char **argv)
 {
-	int w, h, y, x;
+	long w, h, y, x;
 	double minr, maxr, mini, maxi;
 	double rfactor, ifactor;
 
-	w = W;
-	h = H;
+	// Width and height of 0 will be replaced by defaults.
+	w = 0;
+	h = 0;
+
+	int c;
+	while ((c = getopt(argc, argv, ":w:h:")) != -1) {
+		switch(c) {
+		case 'w':
+			errno = 0;
+			w = strtol(optarg, NULL, 10);
+			if (errno != 0 || w<1) {
+				fprintf(stderr, "Invalid width\n");
+				exit(EXIT_FAILURE);
+			}
+			break;
+		case 'h':
+			errno = 0;
+			h = strtol(optarg, NULL, 10);
+			if (errno != 0 || h<1) {
+				fprintf(stderr, "Invalid height\n");
+				exit(EXIT_FAILURE);
+			}
+			break;
+		case ':':
+			printf("Argument requires a value.\n");
+			break;
+		case '?':
+			printf("Unknown argument: %c\n", optopt);
+			break;
+		}
+	}
+
+	if (w==0) {
+		w = DEFAULT_WIDTH;
+	}
+
+	if (h==0) {
+		// Default to 1920x1080 aspect ratio
+		h = (int) ( (double)w * 1080.0/1920.0);
+	}
 	int *image;
 
 	image = (int *) malloc(w*h*sizeof(int));
