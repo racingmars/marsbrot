@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <png.h>
@@ -20,6 +21,8 @@ int main(int argc, char **argv)
 	long w, h, y, x;
 	double minr, maxr, mini, maxi;
 	double rfactor, ifactor;
+
+	struct timespec starttime, stoptime;
 
 	// Width and height of 0 will be replaced by defaults.
 	w = 0;
@@ -108,10 +111,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-
-
-	// At a zoom of 1, we want a horizontal span of 5.0.
-	
+	// At a zoom of 1, we want a horizontal span of 4.5.
 	double hspan = 4.5 / zoom;
 	double minx = centerx - (hspan / 2.0);
 	double maxx = centerx + (hspan / 2.0);
@@ -137,6 +137,10 @@ int main(int argc, char **argv)
 	printf("Dimensions: (%f,%f) (%f,%f)\n",
 		   minr, maxi, maxr, mini);
 
+	if (clock_gettime(CLOCK_MONOTONIC, &starttime) != 0) {
+		fprintf(stderr, "Unable to get start time\n");
+		return(EXIT_FAILURE);
+	}
 	for (y = 0; y < h; y++)
 	{
 		double c_im = maxi - y * ifactor;
@@ -166,6 +170,12 @@ int main(int argc, char **argv)
 			}
 		}
 	}
+	if (clock_gettime(CLOCK_MONOTONIC, &stoptime) != 0) {
+		fprintf(stderr, "Unable to get stop time\n");
+		return(EXIT_FAILURE);
+	}
+
+	printf("Time taken to render: %f\n", ((double)stoptime.tv_sec+(double)stoptime.tv_nsec/1.0e9)-((double)starttime.tv_sec+(double)starttime.tv_nsec/1.0e9));
 
 	writeImage("output.png", w, h, image, "Mandelbrot");
 
