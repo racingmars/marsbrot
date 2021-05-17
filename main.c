@@ -2,6 +2,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include <errno.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -13,14 +14,24 @@
 
 void setRGB(png_byte *ptr, int val);
 int writeImage(char* filename, int width, int height, int *buffer, char* title);
+void * worker(void *arg);
 
 long maxIterations = 2500;
 
+int nextrow = 0;
+pthread_mutex_t mutex;
+
+long w, h;
+double minr, maxr, mini, maxi;
+double rfactor, ifactor;
+
+int *image;
+
 int main(int argc, char **argv)
 {
-	long w, h, y, x;
-	double minr, maxr, mini, maxi;
-	double rfactor, ifactor;
+	int numthreads = 1;
+	pthread_t *threads;
+	int i;
 
 	struct timespec starttime, stoptime;
 
@@ -34,7 +45,7 @@ int main(int argc, char **argv)
 	double zoom = 1.0;
 
 	int c;
-	while ((c = getopt(argc, argv, ":w:h:x:y:z:i:")) != -1) {
+	while ((c = getopt(argc, argv, ":w:h:x:y:z:i:t:")) != -1) {
 		switch(c) {
 		case 'w':
 			errno = 0;
@@ -84,6 +95,14 @@ int main(int argc, char **argv)
 				exit(EXIT_FAILURE);
 			}
 			break;
+		case 't':
+			errno = 0;
+			numthreads = strtol(optarg, NULL, 10);
+			if (errno != 0 || numthreads<1 || numthreads>1024) {
+				fprintf(stderr, "Invalid number of threads\n");
+				exit(EXIT_FAILURE);
+			}
+			break;
 		case ':':
 			printf("Argument requires a value.\n");
 			exit(EXIT_FAILURE);
@@ -103,7 +122,7 @@ int main(int argc, char **argv)
 		// Default to 1920x1080 aspect ratio
 		h = (int) ( (double)w * 1080.0/1920.0);
 	}
-	int *image;
+	
 
 	image = (int *) malloc(w*h*sizeof(int));
 	if (image == NULL) {
@@ -115,6 +134,13 @@ int main(int argc, char **argv)
 	double hspan = 4.5 / zoom;
 	double minx = centerx - (hspan / 2.0);
 	double maxx = centerx + (hspan / 2.0);
+
+	printf("Running with %d threads\n", numthreads);
+	threads = malloc(sizeof(pthread_t) * numthreads);
+	if (threads == 0) {
+		fprintf(stderr, "Couldn't allocate memory for threads\n");
+		return(EXIT_FAILURE);
+	}
 
 	// The step of each pixel in the horizontal span will give us the
 	// vertical span.
@@ -137,39 +163,32 @@ int main(int argc, char **argv)
 	printf("Dimensions: (%f,%f) (%f,%f)\n",
 		   minr, maxi, maxr, mini);
 
+	if (pthread_mutex_init(&mutex, NULL) != 0) {
+		fprintf(stderr, "Unable to initialize mutex\n");
+		return(EXIT_FAILURE);
+	}
+
 	if (clock_gettime(CLOCK_MONOTONIC, &starttime) != 0) {
 		fprintf(stderr, "Unable to get start time\n");
 		return(EXIT_FAILURE);
 	}
-	for (y = 0; y < h; y++)
-	{
-		double c_im = maxi - y * ifactor;
-		for (x = 0; x < w; x++)
-		{
-			double c_re = minr + x * rfactor;
-
-			double z_re = c_re, z_im = c_im; // Set z = c
-			int isinside = 1;
-			int itercount;
-			for (int n = 0; n < maxIterations; n++)
-			{
-				if (z_re * z_re + z_im * z_im > 4)
-				{
-					itercount = n;
-					isinside = 0;
-					break;
-				}
-				double z_im2 = z_im * z_im;
-				z_im = 2 * z_re * z_im + c_im;
-				z_re = z_re * z_re - z_im2 + c_re;
-			}
-			if(isinside) {
-				image[y*w + x] = -1;
-			} else {
-				image[y*w + x] = itercount;
-			}
+	
+	for (i=0; i<numthreads; i++) {
+		if (pthread_create(&threads[i], NULL, &worker, NULL) != 0) {
+			fprintf(stderr, "Unable to start thread %d\n", i);
+			return(EXIT_FAILURE);
 		}
 	}
+
+	for (i=0; i<numthreads; i++) {
+		if (pthread_join(threads[i], NULL) != 0) {
+			fprintf(stderr, "Unable to join thread %d\n", i);
+			return(EXIT_FAILURE);
+		}
+	}
+
+	pthread_mutex_destroy(&mutex);
+
 	if (clock_gettime(CLOCK_MONOTONIC, &stoptime) != 0) {
 		fprintf(stderr, "Unable to get stop time\n");
 		return(EXIT_FAILURE);
@@ -178,6 +197,8 @@ int main(int argc, char **argv)
 	printf("Time taken to render: %f\n", ((double)stoptime.tv_sec+(double)stoptime.tv_nsec/1.0e9)-((double)starttime.tv_sec+(double)starttime.tv_nsec/1.0e9));
 
 	writeImage("output.png", w, h, image, "Mandelbrot");
+
+	free(image);
 
 	return 0;
 }
@@ -274,4 +295,56 @@ void setRGB(png_byte *ptr, int val)
 		int ccc = (int)(255.0*((double)val/(double)maxIterations));
 		ptr[0] = ccc; ptr[1] = ccc; ptr[2] = ccc;
 	}
+}
+
+void * worker(void *arg) {
+	int y, x;
+
+	while (1) {
+		if (pthread_mutex_lock(&mutex) != 0) {
+			fprintf(stderr, "Unable to lock mutex\n");
+			return NULL;
+		}
+
+		y = nextrow;
+		nextrow++;
+
+		if (pthread_mutex_unlock(&mutex) != 0) {
+			fprintf(stderr, "Unable to unlock mutex\n");
+			return NULL;
+		}
+
+		if (y >= h) {
+			break;
+		}
+
+		double c_im = maxi - y * ifactor;
+		for (x = 0; x < w; x++)
+		{
+			double c_re = minr + x * rfactor;
+
+			double z_re = c_re, z_im = c_im; // Set z = c
+			int isinside = 1;
+			int itercount;
+			for (int n = 0; n < maxIterations; n++)
+			{
+				if (z_re * z_re + z_im * z_im > 4)
+				{
+					itercount = n;
+					isinside = 0;
+					break;
+				}
+				double z_im2 = z_im * z_im;
+				z_im = 2 * z_re * z_im + c_im;
+				z_re = z_re * z_re - z_im2 + c_re;
+			}
+			if(isinside) {
+				image[y*w + x] = -1;
+			} else {
+				image[y*w + x] = itercount;
+			}
+		}
+	}
+
+	return NULL;
 }
