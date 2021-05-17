@@ -2,7 +2,7 @@ CC=gcc
 
 CFLAGS= -std=c99 -m64 -O3 -pedantic
 CPPFLAGS= -D_POSIX_C_SOURCE=200809L -DLODEPNG_NO_COMPILE_DECODER
-LDFLAGS= -lpthread
+LDFLAGS= -lpthread -lm
 
 marsbrot: marsbrot.o lodepng.o
 	$(CC) -o $@ $^ $(CFLAGS) $(CPPFLAGS) $(LDFLAGS)

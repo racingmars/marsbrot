@@ -2,6 +2,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include <errno.h>
+#include <math.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -221,17 +222,15 @@ int writeImage(char* filename, int width, int height, int *buffer, char* title)
 				pixdata[3 * width * y + 3 * x + 1] = 0;
 				pixdata[3 * width * y + 3 * x + 2] = 0;
 			} else {
-				if (image[y*w+x] < maxIterations/2-1) {
-					int redscale = (image[y*w+x]*255)/(maxIterations/2-1);
-					pixdata[3 * width * y + 3 * x + 0] = redscale;
-					pixdata[3 * width * y + 3 * x + 1] = 0;
-					pixdata[3 * width * y + 3 * x + 2] = 0;
-				} else {
-					int whitescale = ((image[y*w+x]-(maxIterations/2-1))*255)/(maxIterations/2);
-					pixdata[3 * width * y + 3 * x + 0] = 255;
-					pixdata[3 * width * y + 3 * x + 1] = whitescale;
-					pixdata[3 * width * y + 3 * x + 2] = whitescale;
-				}
+				// Map iteration count to 0.0...1.0.
+				double color = (double)image[y*w+x] / (double)maxIterations;
+				// Apply non-linear transformation.
+				// Gamma, n=2.5 (x = x^(1/n))
+				color = pow(color, 0.4);
+				int colorint = color*255;
+				pixdata[3 * width * y + 3 * x + 0] = colorint;
+				pixdata[3 * width * y + 3 * x + 1] = 0;
+				pixdata[3 * width * y + 3 * x + 2] = 0;
 			}
 		}
 	}
