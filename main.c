@@ -1,3 +1,21 @@
+/*
+	marsbrot, a Mandelbrot Set image rendered.
+	Copyright (C) 2021 Matthew R. Wilson <mwilson@mattwilson.org>
+
+	This program is free software: you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 /* Request POSIX.1-2008-compliant interfaces. */
 #define _POSIX_C_SOURCE 200809L
 
@@ -13,8 +31,8 @@
 
 #define DEFAULT_WIDTH 1920
 
-int writeImage(char* filename, int width, int height, int *buffer, char* title);
-void * worker(void *arg);
+int writeImage(char *filename, int width, int height, int *buffer, char *title);
+void *worker(void *arg);
 
 long maxIterations = 2500;
 
@@ -44,13 +62,29 @@ int main(int argc, char **argv)
 
 	double zoom = 1.0;
 
+	printf("marsbrot, a Mandelbrot Set image rendered.\n");
+	printf("Copyright (C) 2021 Matthew R. Wilson <mwilson@mattwilson.org>\n\n"
+		   "This program is free software: you can redistribute it and/or modify\n"
+		   "it under the terms of the GNU General Public License as published by\n"
+		   "the Free Software Foundation, either version 3 of the License, or\n"
+		   "(at your option) any later version.\n\n"
+		   "This program is distributed in the hope that it will be useful,\n"
+		   "but WITHOUT ANY WARRANTY; without even the implied warranty of\n"
+		   "MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the\n"
+		   "GNU General Public License for more details.\n\n"
+		   "You should have received a copy of the GNU General Public License\n"
+		   "along with this program.  If not, see <https://www.gnu.org/licenses/>.\n\n");
+
 	int c;
-	while ((c = getopt(argc, argv, ":w:h:x:y:z:i:t:")) != -1) {
-		switch(c) {
+	while ((c = getopt(argc, argv, ":w:h:x:y:z:i:t:")) != -1)
+	{
+		switch (c)
+		{
 		case 'w':
 			errno = 0;
 			w = strtol(optarg, NULL, 10);
-			if (errno != 0 || w<1) {
+			if (errno != 0 || w < 1)
+			{
 				fprintf(stderr, "Invalid width\n");
 				exit(EXIT_FAILURE);
 			}
@@ -58,7 +92,8 @@ int main(int argc, char **argv)
 		case 'h':
 			errno = 0;
 			h = strtol(optarg, NULL, 10);
-			if (errno != 0 || h<1) {
+			if (errno != 0 || h < 1)
+			{
 				fprintf(stderr, "Invalid height\n");
 				exit(EXIT_FAILURE);
 			}
@@ -66,7 +101,8 @@ int main(int argc, char **argv)
 		case 'x':
 			errno = 0;
 			centerx = strtod(optarg, NULL);
-			if (errno != 0) {
+			if (errno != 0)
+			{
 				fprintf(stderr, "Invalid center x coordinate\n");
 				exit(EXIT_FAILURE);
 			}
@@ -74,7 +110,8 @@ int main(int argc, char **argv)
 		case 'y':
 			errno = 0;
 			centery = strtod(optarg, NULL);
-			if (errno != 0) {
+			if (errno != 0)
+			{
 				fprintf(stderr, "Invalid center y coordinate\n");
 				exit(EXIT_FAILURE);
 			}
@@ -82,7 +119,8 @@ int main(int argc, char **argv)
 		case 'z':
 			errno = 0;
 			zoom = strtod(optarg, NULL);
-			if (errno != 0 || zoom<1.0) {
+			if (errno != 0 || zoom < 1.0)
+			{
 				fprintf(stderr, "Invalid zoom value\n");
 				exit(EXIT_FAILURE);
 			}
@@ -90,7 +128,8 @@ int main(int argc, char **argv)
 		case 'i':
 			errno = 0;
 			maxIterations = strtol(optarg, NULL, 10);
-			if (errno != 0 || maxIterations < 50) {
+			if (errno != 0 || maxIterations < 50)
+			{
 				fprintf(stderr, "Invalid iterations\n");
 				exit(EXIT_FAILURE);
 			}
@@ -98,7 +137,8 @@ int main(int argc, char **argv)
 		case 't':
 			errno = 0;
 			numthreads = strtol(optarg, NULL, 10);
-			if (errno != 0 || numthreads<1 || numthreads>1024) {
+			if (errno != 0 || numthreads < 1 || numthreads > 1024)
+			{
 				fprintf(stderr, "Invalid number of threads\n");
 				exit(EXIT_FAILURE);
 			}
@@ -114,18 +154,20 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if (w==0) {
+	if (w == 0)
+	{
 		w = DEFAULT_WIDTH;
 	}
 
-	if (h==0) {
+	if (h == 0)
+	{
 		// Default to 1920x1080 aspect ratio
-		h = (int) ( (double)w * 1080.0/1920.0);
+		h = (int)((double)w * 1080.0 / 1920.0);
 	}
-	
 
-	image = (int *) malloc(w*h*sizeof(int));
-	if (image == NULL) {
+	image = (int *)malloc(w * h * sizeof(int));
+	if (image == NULL)
+	{
 		printf("Couldn't allocate image buffer.\n");
 		return 1;
 	}
@@ -137,9 +179,10 @@ int main(int argc, char **argv)
 
 	printf("Running with %d threads\n", numthreads);
 	threads = malloc(sizeof(pthread_t) * numthreads);
-	if (threads == 0) {
+	if (threads == 0)
+	{
 		fprintf(stderr, "Couldn't allocate memory for threads\n");
-		return(EXIT_FAILURE);
+		return (EXIT_FAILURE);
 	}
 
 	// The step of each pixel in the horizontal span will give us the
@@ -163,38 +206,45 @@ int main(int argc, char **argv)
 	printf("Dimensions: (%f,%f) (%f,%f)\n",
 		   minr, maxi, maxr, mini);
 
-	if (pthread_mutex_init(&mutex, NULL) != 0) {
+	if (pthread_mutex_init(&mutex, NULL) != 0)
+	{
 		fprintf(stderr, "Unable to initialize mutex\n");
-		return(EXIT_FAILURE);
+		return (EXIT_FAILURE);
 	}
 
-	if (clock_gettime(CLOCK_MONOTONIC, &starttime) != 0) {
+	if (clock_gettime(CLOCK_MONOTONIC, &starttime) != 0)
+	{
 		fprintf(stderr, "Unable to get start time\n");
-		return(EXIT_FAILURE);
+		return (EXIT_FAILURE);
 	}
-	
-	for (i=0; i<numthreads; i++) {
-		if (pthread_create(&threads[i], NULL, &worker, NULL) != 0) {
+
+	for (i = 0; i < numthreads; i++)
+	{
+		if (pthread_create(&threads[i], NULL, &worker, NULL) != 0)
+		{
 			fprintf(stderr, "Unable to start thread %d\n", i);
-			return(EXIT_FAILURE);
+			return (EXIT_FAILURE);
 		}
 	}
 
-	for (i=0; i<numthreads; i++) {
-		if (pthread_join(threads[i], NULL) != 0) {
+	for (i = 0; i < numthreads; i++)
+	{
+		if (pthread_join(threads[i], NULL) != 0)
+		{
 			fprintf(stderr, "Unable to join thread %d\n", i);
-			return(EXIT_FAILURE);
+			return (EXIT_FAILURE);
 		}
 	}
 
 	pthread_mutex_destroy(&mutex);
 
-	if (clock_gettime(CLOCK_MONOTONIC, &stoptime) != 0) {
+	if (clock_gettime(CLOCK_MONOTONIC, &stoptime) != 0)
+	{
 		fprintf(stderr, "Unable to get stop time\n");
-		return(EXIT_FAILURE);
+		return (EXIT_FAILURE);
 	}
 
-	printf("Time taken to render: %f\n", ((double)stoptime.tv_sec+(double)stoptime.tv_nsec/1.0e9)-((double)starttime.tv_sec+(double)starttime.tv_nsec/1.0e9));
+	printf("Time taken to render: %f\n", ((double)stoptime.tv_sec + (double)stoptime.tv_nsec / 1.0e9) - ((double)starttime.tv_sec + (double)starttime.tv_nsec / 1.0e9));
 
 	writeImage("output.png", w, h, image, "Mandelbrot");
 
@@ -203,31 +253,37 @@ int main(int argc, char **argv)
 	return 0;
 }
 
-int writeImage(char* filename, int width, int height, int *buffer, char* title)
+int writeImage(char *filename, int width, int height, int *buffer, char *title)
 {
 	unsigned char *pixdata;
 	int y, x;
 
-	pixdata = (unsigned char *)malloc(sizeof(unsigned char)*w*h*3);
-	
-	if (pixdata == 0) {
+	pixdata = (unsigned char *)malloc(sizeof(unsigned char) * w * h * 3);
+
+	if (pixdata == 0)
+	{
 		fprintf(stderr, "Unable to allocate memory for raw pixmap data\n");
 		exit(EXIT_FAILURE);
 	}
 
-	for (y=0; y<h; y++) {
-		for (x=0; x<w; x++) {
-			if (image[y*w+x] == maxIterations) {
+	for (y = 0; y < h; y++)
+	{
+		for (x = 0; x < w; x++)
+		{
+			if (image[y * w + x] == maxIterations)
+			{
 				pixdata[3 * width * y + 3 * x + 0] = 0;
 				pixdata[3 * width * y + 3 * x + 1] = 0;
 				pixdata[3 * width * y + 3 * x + 2] = 0;
-			} else {
+			}
+			else
+			{
 				// Map iteration count to 0.0...1.0.
-				double color = (double)image[y*w+x] / (double)maxIterations;
+				double color = (double)image[y * w + x] / (double)maxIterations;
 				// Apply non-linear transformation.
 				// Gamma, n=2.5 (x = x^(1/n))
 				color = pow(color, 0.4);
-				int colorint = color*255;
+				int colorint = color * 255;
 				pixdata[3 * width * y + 3 * x + 0] = colorint;
 				pixdata[3 * width * y + 3 * x + 1] = 0;
 				pixdata[3 * width * y + 3 * x + 2] = 0;
@@ -240,11 +296,14 @@ int writeImage(char* filename, int width, int height, int *buffer, char* title)
 	free(pixdata);
 }
 
-void * worker(void *arg) {
+void *worker(void *arg)
+{
 	int y, x;
 
-	while (1) {
-		if (pthread_mutex_lock(&mutex) != 0) {
+	while (1)
+	{
+		if (pthread_mutex_lock(&mutex) != 0)
+		{
 			fprintf(stderr, "Unable to lock mutex\n");
 			return NULL;
 		}
@@ -252,12 +311,14 @@ void * worker(void *arg) {
 		y = nextrow;
 		nextrow++;
 
-		if (pthread_mutex_unlock(&mutex) != 0) {
+		if (pthread_mutex_unlock(&mutex) != 0)
+		{
 			fprintf(stderr, "Unable to unlock mutex\n");
 			return NULL;
 		}
 
-		if (y >= h) {
+		if (y >= h)
+		{
 			break;
 		}
 
@@ -278,7 +339,7 @@ void * worker(void *arg) {
 				z_im = 2 * z_re * z_im + c_im;
 				z_re = z_re * z_re - z_im2 + c_re;
 			}
-			image[y*w + x] = itercount;
+			image[y * w + x] = itercount;
 		}
 	}
 
