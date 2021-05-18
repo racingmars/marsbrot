@@ -90,7 +90,7 @@ int main(int argc, char **argv)
 		case 'i':
 			errno = 0;
 			maxIterations = strtol(optarg, NULL, 10);
-			if (errno != 0 || maxIterations < 50 || maxIterations > 100000) {
+			if (errno != 0 || maxIterations < 50) {
 				fprintf(stderr, "Invalid iterations\n");
 				exit(EXIT_FAILURE);
 			}
