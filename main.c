@@ -217,7 +217,7 @@ int writeImage(char* filename, int width, int height, int *buffer, char* title)
 
 	for (y=0; y<h; y++) {
 		for (x=0; x<w; x++) {
-			if (image[y*w+x] < 0) {
+			if (image[y*w+x] == maxIterations) {
 				pixdata[3 * width * y + 3 * x + 0] = 0;
 				pixdata[3 * width * y + 3 * x + 1] = 0;
 				pixdata[3 * width * y + 3 * x + 2] = 0;
@@ -267,25 +267,18 @@ void * worker(void *arg) {
 			double c_re = minr + x * rfactor;
 
 			double z_re = c_re, z_im = c_im; // Set z = c
-			int isinside = 1;
 			int itercount;
-			for (int n = 0; n < maxIterations; n++)
+			for (itercount = 1; itercount < maxIterations; itercount++)
 			{
 				if (z_re * z_re + z_im * z_im > 4)
 				{
-					itercount = n;
-					isinside = 0;
 					break;
 				}
 				double z_im2 = z_im * z_im;
 				z_im = 2 * z_re * z_im + c_im;
 				z_re = z_re * z_re - z_im2 + c_re;
 			}
-			if(isinside) {
-				image[y*w + x] = -1;
-			} else {
-				image[y*w + x] = itercount;
-			}
+			image[y*w + x] = itercount;
 		}
 	}
 
