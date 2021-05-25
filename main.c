@@ -30,18 +30,27 @@
 #include "lodepng.h"
 
 #define DEFAULT_WIDTH 1920
+#define DEFAULT_ITERATIONS 2500
 
 void writeImage(char *filename, int width, int height, int *buffer, char *title);
 void *worker(void *arg);
 
-long maxIterations = 2500;
+struct mandparams {
+	int w, h;          // dimensions of rendered image in pixels
+	double zoom;       // zoom factor; 1.0 is an x span of 4.5
+	int maxIterations; // number of iterations before deciding point is in set
+	double centerx, centery; // center coordinates of real and imaginary axes
+	double minx, maxx; // x (real axis) extent
+	double miny, maxy; // y (imaginary axis) extent
+	double pixstep;    // step size between 2 pixels
+	double xratio;     // ratio to translate pixel to x (real) axis
+	double yratio;     // ratio to translate pixel to y (imaginary) axis
+} params;
 
+// We will dispatch work by incrementing nextrow until we are out of
+// additional lines needing to be rendered.
 int nextrow = 0;
 pthread_mutex_t mutex;
-
-long w, h;
-double minr, maxr, mini, maxi;
-double rfactor, ifactor;
 
 int *image;
 
@@ -54,16 +63,15 @@ int main(int argc, char **argv)
 	struct timespec starttime, stoptime;
 
 	// Width and height of 0 will be replaced by defaults.
-	w = 0;
-	h = 0;
+	params.w = 0;
+	params.h = 0;
+	params.zoom = 1.0;
+	params.maxIterations = DEFAULT_ITERATIONS;
+	params.centerx = -0.5;
+	params.centery = 0;
 
-	double centerx = -0.5;
-	double centery = 0;
-
-	double zoom = 1.0;
-
-	printf("marsbrot, a Mandelbrot Set image rendered.\n");
-	printf("Copyright (C) 2021 Matthew R. Wilson <mwilson@mattwilson.org>\n\n"
+	printf("marsbrot, a Mandelbrot Set image renderer.\n\n"
+		   "Copyright (C) 2021 Matthew R. Wilson <mwilson@mattwilson.org>\n\n"
 		   "This program is free software: you can redistribute it and/or modify\n"
 		   "it under the terms of the GNU General Public License as published by\n"
 		   "the Free Software Foundation, either version 3 of the License, or\n"
@@ -73,7 +81,7 @@ int main(int argc, char **argv)
 		   "MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the\n"
 		   "GNU General Public License for more details.\n\n"
 		   "You should have received a copy of the GNU General Public License\n"
-		   "along with this program.  If not, see <https://www.gnu.org/licenses/>.\n\n");
+		   "along with this program. If not, see <https://www.gnu.org/licenses/>.\n\n");
 
 	int c;
 	while ((c = getopt(argc, argv, ":w:h:x:y:z:i:t:")) != -1)
@@ -82,8 +90,8 @@ int main(int argc, char **argv)
 		{
 		case 'w':
 			errno = 0;
-			w = strtol(optarg, NULL, 10);
-			if (errno != 0 || w < 1)
+			params.w = strtol(optarg, NULL, 10);
+			if (errno != 0 || params.w < 1)
 			{
 				fprintf(stderr, "Invalid width\n");
 				exit(EXIT_FAILURE);
@@ -91,8 +99,8 @@ int main(int argc, char **argv)
 			break;
 		case 'h':
 			errno = 0;
-			h = strtol(optarg, NULL, 10);
-			if (errno != 0 || h < 1)
+			params.h = strtol(optarg, NULL, 10);
+			if (errno != 0 || params.h < 1)
 			{
 				fprintf(stderr, "Invalid height\n");
 				exit(EXIT_FAILURE);
@@ -100,7 +108,7 @@ int main(int argc, char **argv)
 			break;
 		case 'x':
 			errno = 0;
-			centerx = strtod(optarg, NULL);
+			params.centerx = strtod(optarg, NULL);
 			if (errno != 0)
 			{
 				fprintf(stderr, "Invalid center x coordinate\n");
@@ -109,7 +117,7 @@ int main(int argc, char **argv)
 			break;
 		case 'y':
 			errno = 0;
-			centery = strtod(optarg, NULL);
+			params.centery = strtod(optarg, NULL);
 			if (errno != 0)
 			{
 				fprintf(stderr, "Invalid center y coordinate\n");
@@ -118,8 +126,8 @@ int main(int argc, char **argv)
 			break;
 		case 'z':
 			errno = 0;
-			zoom = strtod(optarg, NULL);
-			if (errno != 0 || zoom < 1.0)
+			params.zoom = strtod(optarg, NULL);
+			if (errno != 0 || params.zoom < 1.0)
 			{
 				fprintf(stderr, "Invalid zoom value\n");
 				exit(EXIT_FAILURE);
@@ -127,8 +135,8 @@ int main(int argc, char **argv)
 			break;
 		case 'i':
 			errno = 0;
-			maxIterations = strtol(optarg, NULL, 10);
-			if (errno != 0 || maxIterations < 50)
+			params.maxIterations = strtol(optarg, NULL, 10);
+			if (errno != 0 || params.maxIterations < 50)
 			{
 				fprintf(stderr, "Invalid iterations\n");
 				exit(EXIT_FAILURE);
@@ -154,18 +162,18 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if (w == 0)
+	if (params.w == 0)
 	{
-		w = DEFAULT_WIDTH;
+		params.w = DEFAULT_WIDTH;
 	}
 
-	if (h == 0)
+	if (params.h == 0)
 	{
 		// Default to 1920x1080 aspect ratio
-		h = (int)((double)w * 1080.0 / 1920.0);
+		params.h = (int)((double)params.w * 1080.0 / 1920.0);
 	}
 
-	image = (int *)malloc(w * h * sizeof(int));
+	image = (int *)malloc(params.w * params.h * sizeof(int));
 	if (image == NULL)
 	{
 		printf("Couldn't allocate image buffer.\n");
@@ -173,9 +181,9 @@ int main(int argc, char **argv)
 	}
 
 	// At a zoom of 1, we want a horizontal span of 4.5.
-	double hspan = 4.5 / zoom;
-	double minx = centerx - (hspan / 2.0);
-	double maxx = centerx + (hspan / 2.0);
+	double hspan = 4.5 / params.zoom;
+	params.minx = params.centerx - (hspan / 2.0);
+	params.maxx = params.centerx + (hspan / 2.0);
 
 	printf("Running with %d threads\n", numthreads);
 	threads = malloc(sizeof(pthread_t) * numthreads);
@@ -187,24 +195,19 @@ int main(int argc, char **argv)
 
 	// The step of each pixel in the horizontal span will give us the
 	// vertical span.
-	double pixelstep = hspan / (double)w;
-	double miny = centery - (double)h / 2 * pixelstep;
-	double maxy = centery + (double)h / 2 * pixelstep;
-	printf("Center (x,y): (%f,%f)\n", centerx, centery);
-	printf("X span      : %f %f\n", minx, maxx);
-	printf("Pixel step  : %f\n", pixelstep);
-	printf("Y span      : %f %f\n", miny, maxy);
+	params.pixstep = hspan / (double)params.w;
+	params.miny = params.centery - (double)params.h / 2 * params.pixstep;
+	params.maxy = params.centery + (double)params.h / 2 * params.pixstep;
+	printf("Center (x,y): (%f,%f)\n", params.centerx, params.centery);
+	printf("X span      : %f %f\n", params.minx, params.maxx);
+	printf("Pixel step  : %f\n", params.pixstep);
+	printf("Y span      : %f %f\n", params.miny, params.maxy);
 
-	minr = minx;
-	maxr = maxx;
-	mini = miny;
-	maxi = maxy;
-
-	rfactor = (maxr - minr) / (w - 1);
-	ifactor = (maxi - mini) / (h - 1);
+	params.xratio = (params.maxx - params.minx) / (params.w - 1);
+	params.yratio = (params.maxy - params.miny) / (params.h - 1);
 
 	printf("Dimensions: (%f,%f) (%f,%f)\n",
-		   minr, maxi, maxr, mini);
+		   params.minx, params.maxy, params.maxx, params.miny);
 
 	if (pthread_mutex_init(&mutex, NULL) != 0)
 	{
@@ -244,9 +247,11 @@ int main(int argc, char **argv)
 		return (EXIT_FAILURE);
 	}
 
-	printf("Time taken to render: %f\n", ((double)stoptime.tv_sec + (double)stoptime.tv_nsec / 1.0e9) - ((double)starttime.tv_sec + (double)starttime.tv_nsec / 1.0e9));
+	printf("Time taken to render: %f\n",
+		((double)stoptime.tv_sec + (double)stoptime.tv_nsec / 1.0e9) -
+		((double)starttime.tv_sec + (double)starttime.tv_nsec / 1.0e9));
 
-	writeImage("output.png", w, h, image, "Mandelbrot");
+	writeImage("output.png", params.w, params.h, image, "Mandelbrot");
 
 	free(image);
 
@@ -258,7 +263,8 @@ void writeImage(char *filename, int width, int height, int *buffer, char *title)
 	unsigned char *pixdata;
 	int y, x;
 
-	pixdata = (unsigned char *)malloc(sizeof(unsigned char) * w * h * 3);
+	pixdata = (unsigned char *)malloc(
+		sizeof(unsigned char) * params.w * params.h * 3);
 
 	if (pixdata == 0)
 	{
@@ -266,11 +272,11 @@ void writeImage(char *filename, int width, int height, int *buffer, char *title)
 		exit(EXIT_FAILURE);
 	}
 
-	for (y = 0; y < h; y++)
+	for (y = 0; y < params.h; y++)
 	{
-		for (x = 0; x < w; x++)
+		for (x = 0; x < params.w; x++)
 		{
-			if (image[y * w + x] == maxIterations)
+			if (image[y * params.w + x] == params.maxIterations)
 			{
 				pixdata[3 * width * y + 3 * x + 0] = 0;
 				pixdata[3 * width * y + 3 * x + 1] = 0;
@@ -279,7 +285,8 @@ void writeImage(char *filename, int width, int height, int *buffer, char *title)
 			else
 			{
 				// Map iteration count to 0.0...1.0.
-				double color = (double)image[y * w + x] / (double)maxIterations;
+				double color = (double)image[y * params.w + x] /
+					(double)params.maxIterations;
 				// Apply non-linear transformation.
 				// Gamma, n=2.5 (x = x^(1/n))
 				color = pow(color, 0.4);
@@ -291,7 +298,8 @@ void writeImage(char *filename, int width, int height, int *buffer, char *title)
 		}
 	}
 
-	unsigned error = lodepng_encode24_file("output.png", pixdata, w, h);
+	unsigned error = lodepng_encode24_file("output.png", pixdata, params.w,
+		params.h);
 
 	free(pixdata);
 }
@@ -317,19 +325,19 @@ void *worker(void *arg)
 			return NULL;
 		}
 
-		if (y >= h)
+		if (y >= params.h)
 		{
 			break;
 		}
 
-		double c_im = maxi - y * ifactor;
-		for (x = 0; x < w; x++)
+		double c_im = params.maxy - y * params.yratio;
+		for (x = 0; x < params.w; x++)
 		{
-			double c_re = minr + x * rfactor;
+			double c_re = params.minx + x * params.xratio;
 
 			double z_re = c_re, z_im = c_im; // Set z = c
 			int itercount;
-			for (itercount = 1; itercount < maxIterations; itercount++)
+			for (itercount = 1; itercount < params.maxIterations; itercount++)
 			{
 				if (z_re * z_re + z_im * z_im > 4)
 				{
@@ -339,7 +347,7 @@ void *worker(void *arg)
 				z_im = 2 * z_re * z_im + c_im;
 				z_re = z_re * z_re - z_im2 + c_re;
 			}
-			image[y * w + x] = itercount;
+			image[y * params.w + x] = itercount;
 		}
 	}
 
