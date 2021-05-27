@@ -31,7 +31,7 @@
 
 #define DEFAULT_WIDTH 1920
 
-int writeImage(char *filename, int width, int height, int *buffer, char *title);
+void writeImage(char *filename, int width, int height, int *buffer, char *title);
 void *worker(void *arg);
 
 long maxIterations = 2500;
@@ -253,7 +253,7 @@ int main(int argc, char **argv)
 	return 0;
 }
 
-int writeImage(char *filename, int width, int height, int *buffer, char *title)
+void writeImage(char *filename, int width, int height, int *buffer, char *title)
 {
 	unsigned char *pixdata;
 	int y, x;
