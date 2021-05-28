@@ -34,6 +34,7 @@
 
 void writeImage(char *filename, int width, int height, int *buffer, char *title);
 void *worker(void *arg);
+int mandelbrot(double x0, double y0, int max);
 
 struct mandparams {
 	int w, h;          // dimensions of rendered image in pixels
@@ -334,22 +335,30 @@ void *worker(void *arg)
 		for (x = 0; x < params.w; x++)
 		{
 			double c_re = params.minx + x * params.xratio;
-
-			double z_re = c_re, z_im = c_im; // Set z = c
-			int itercount;
-			for (itercount = 1; itercount < params.maxIterations; itercount++)
-			{
-				if (z_re * z_re + z_im * z_im > 4)
-				{
-					break;
-				}
-				double z_im2 = z_im * z_im;
-				z_im = 2 * z_re * z_im + c_im;
-				z_re = z_re * z_re - z_im2 + c_re;
-			}
-			image[y * params.w + x] = itercount;
+			image[y * params.w + x] = mandelbrot(c_re, c_im,
+												 params.maxIterations);
 		}
 	}
 
 	return NULL;
+}
+
+int mandelbrot(double x0, double y0, int max)
+{
+	double x, y, x2, y2;
+	int n;
+
+	x = y = x2 = y2 = 0.0;
+	n = 0;
+
+	while (x2 + y2 <= 4 && n < max)
+	{
+		y = (x+x) * y + y0;
+		x = x2 - y2 + x0;
+		x2 = x * x;
+		y2 = y * y;
+		n++;
+	}
+
+	return n;
 }
