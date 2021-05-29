@@ -348,6 +348,15 @@ int mandelbrot(double x0, double y0, int max)
 	double x, y, x2, y2;
 	int n;
 
+#ifndef DISABLE_BULB_CHECK
+	double p;
+	p = (x0 - 0.25) * (x0 - 0.25) + y0*y0;
+	p = sqrt(p);
+	p = p - 2*p*p + 0.25;
+	if (x0 <= p) return max;
+	if ((x0+1)*(x0+1)+y0*y0 <= 1/16) return max;
+#endif
+
 	x = y = x2 = y2 = 0.0;
 	n = 0;
 
