@@ -171,10 +171,10 @@ int main(int argc, char **argv)
 	if (params.h == 0)
 	{
 		// Default to 1920x1080 aspect ratio
-		params.h = (int)((double)params.w * 1080.0 / 1920.0);
+		params.h = params.w * 1080.0 / 1920.0;
 	}
 
-	image = (int *)malloc(params.w * params.h * sizeof(int));
+	image = malloc(sizeof *image * params.w * params.h);
 	if (image == NULL)
 	{
 		printf("Couldn't allocate image buffer.\n");
@@ -187,7 +187,7 @@ int main(int argc, char **argv)
 	params.maxx = params.centerx + (hspan / 2.0);
 
 	printf("Running with %d threads\n", numthreads);
-	threads = malloc(sizeof(pthread_t) * numthreads);
+	threads = malloc(sizeof *threads * numthreads);
 	if (threads == 0)
 	{
 		fprintf(stderr, "Couldn't allocate memory for threads\n");
@@ -196,9 +196,9 @@ int main(int argc, char **argv)
 
 	// The step of each pixel in the horizontal span will give us the
 	// vertical span.
-	params.pixstep = hspan / (double)params.w;
-	params.miny = params.centery - (double)params.h / 2 * params.pixstep;
-	params.maxy = params.centery + (double)params.h / 2 * params.pixstep;
+	params.pixstep = hspan / params.w;
+	params.miny = params.centery - params.h / 2.0 * params.pixstep;
+	params.maxy = params.centery + params.h / 2.0 * params.pixstep;
 	printf("Center (x,y): (%f,%f)\n", params.centerx, params.centery);
 	printf("X span      : %f %f\n", params.minx, params.maxx);
 	printf("Pixel step  : %f\n", params.pixstep);
@@ -264,8 +264,7 @@ void writeImage(char *filename, int width, int height, int *buffer, char *title)
 	unsigned char *pixdata;
 	int y, x;
 
-	pixdata = (unsigned char *)malloc(
-		sizeof(unsigned char) * params.w * params.h * 3);
+	pixdata = malloc(sizeof *pixdata * params.w * params.h * 3);
 
 	if (pixdata == 0)
 	{
@@ -287,7 +286,7 @@ void writeImage(char *filename, int width, int height, int *buffer, char *title)
 			{
 				// Map iteration count to 0.0...1.0.
 				double color = (double)image[y * params.w + x] /
-					(double)params.maxIterations;
+					params.maxIterations;
 				// Apply non-linear transformation.
 				// Gamma, n=2.5 (x = x^(1/n))
 				color = pow(color, 0.4);
