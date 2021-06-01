@@ -1,3 +1,7 @@
 marsbrot
+xmarsbrot
 output.*
 *.o
+
+.vscode
+

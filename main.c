@@ -1,4 +1,6 @@
 /*
+	Command-line interface to marsbrot.
+	
 	marsbrot, a Mandelbrot Set image rendered.
 	Copyright (C) 2021 Matthew R. Wilson <mwilson@mattwilson.org>
 
