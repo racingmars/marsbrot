@@ -42,7 +42,7 @@ int main(int argc, char **argv)
     Arg arglist[10];
     Cardinal arglc = 0;
 
-    XtSetLanguageProc(NULL, NULL, NULL);
+    //XtSetLanguageProc(NULL, NULL, NULL);
     root = XtOpenApplication(&app, "xmarsbrot", NULL, 0, &argc, argv, NULL, shellWidgetClass, NULL, 0);
     form = XtCreateManagedWidget("form", formWidgetClass, root, NULL, 0);
 
@@ -139,7 +139,7 @@ void handleclick(Widget w, XtPointer client_data, XEvent *event,
     }
     else if (event->type == Expose)
     {
-        printf("Got resize\n");
+        printf("Got resize: %d x %d\n", rr->height, rr->width);
         draw(None, client_data, None);
     }
 }
