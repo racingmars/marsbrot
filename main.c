@@ -18,8 +18,8 @@
 	along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-/* Request POSIX.1-2008-compliant interfaces. */
-#define _POSIX_C_SOURCE 200809L
+/* Request POSIX.1-2001-compliant interfaces. */
+#define _POSIX_C_SOURCE 200112L
 
 #include <errno.h>
 #include <math.h>
