@@ -1,7 +1,7 @@
 /*
 	Command-line interface to marsbrot.
-	
-	marsbrot, a Mandelbrot Set image rendered.
+
+	marsbrot, a Mandelbrot Set image renderer.
 	Copyright (C) 2021 Matthew R. Wilson <mwilson@mattwilson.org>
 
 	This program is free software: you can redistribute it and/or modify
@@ -15,7 +15,7 @@
 	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with this program.  If not, see <https://www.gnu.org/licenses/>.
+	along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 
 /* Request POSIX.1-2001-compliant interfaces. */
@@ -30,30 +30,12 @@
 #include <unistd.h>
 
 #include "lodepng.h"
+#include "mandelbrot.h"
 
 #define DEFAULT_WIDTH 1920
 #define DEFAULT_ITERATIONS 2500
 
 void writeImage(char *filename, int width, int height, int *buffer, char *title);
-void *worker(void *arg);
-int mandelbrot(double x0, double y0, int max);
-
-struct mandparams {
-	int w, h;          // dimensions of rendered image in pixels
-	double zoom;       // zoom factor; 1.0 is an x span of 4.5
-	int maxIterations; // number of iterations before deciding point is in set
-	double centerx, centery; // center coordinates of real and imaginary axes
-	double minx, maxx; // x (real axis) extent
-	double miny, maxy; // y (imaginary axis) extent
-	double pixstep;    // step size between 2 pixels
-	double xratio;     // ratio to translate pixel to x (real) axis
-	double yratio;     // ratio to translate pixel to y (imaginary) axis
-} params;
-
-// We will dispatch work by incrementing nextrow until we are out of
-// additional lines needing to be rendered.
-int nextrow = 0;
-pthread_mutex_t mutex;
 
 int *image;
 
@@ -64,6 +46,8 @@ int main(int argc, char **argv)
 	int i;
 
 	struct timespec starttime, stoptime;
+
+	struct mandparams params;
 
 	// Width and height of 0 will be replaced by defaults.
 	params.w = 0;
@@ -306,69 +290,4 @@ void writeImage(char *filename, int width, int height, int *buffer, char *title)
 	free(pixdata);
 }
 
-void *worker(void *arg)
-{
-	int y, x;
 
-	while (1)
-	{
-		if (pthread_mutex_lock(&mutex) != 0)
-		{
-			fprintf(stderr, "Unable to lock mutex\n");
-			return NULL;
-		}
-
-		y = nextrow;
-		nextrow++;
-
-		if (pthread_mutex_unlock(&mutex) != 0)
-		{
-			fprintf(stderr, "Unable to unlock mutex\n");
-			return NULL;
-		}
-
-		if (y >= params.h)
-		{
-			break;
-		}
-
-		double c_im = params.maxy - y * params.yratio;
-		for (x = 0; x < params.w; x++)
-		{
-			double c_re = params.minx + x * params.xratio;
-			image[y * params.w + x] = mandelbrot(c_re, c_im,
-												 params.maxIterations);
-		}
-	}
-
-	return NULL;
-}
-
-int mandelbrot(double x0, double y0, int max)
-{
-	double x, y, x2, y2;
-	int n;
-
-#ifndef DISABLE_BULB_CHECK
-	double p;
-	p = (x0 - 0.25) * (x0 - 0.25) + y0*y0;
-	p = sqrt(p);
-	p = p - 2*p*p + 0.25;
-	if (x0 <= p) return max;
-	if ((x0+1)*(x0+1)+y0*y0 <= 1/16) return max;
-#endif
-
-	x = y = x2 = y2 = 0.0;
-	n = 0;
-
-	while (x2 + y2 <= 4 && n < max)
-	{
-		y = (x+x) * y + y0;
-		x = x2 - y2 + x0;
-		x2 = x * x;
-		y2 = y * y;
-		n++;
-	}
-
-	return n;
-}

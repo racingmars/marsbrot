@@ -11,7 +11,7 @@ For saving PNG files, marsbrot includes `lodepng.c` and `lodepng.h` by Lode Vand
 License
 -------
 
-marsbrot, a Mandelbrot Set image rendered.
+marsbrot, a Mandelbrot Set image renderer.
 Copyright (C) 2021 Matthew R. Wilson <mwilson@mattwilson.org>
 
 This program is free software: you can redistribute it and/or modify
@@ -25,7 +25,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program.  If not, see <https://www.gnu.org/licenses/>.
+along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 References
 ----------

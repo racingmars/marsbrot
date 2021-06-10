@@ -13,15 +13,16 @@ LDLIBS  = -lpthread -lm -lX11 -lXt -lXaw
 
 default: marsbrot xmarsbrot
 
-marsbrot: main.o lodepng.o
-	$(CC) $(LDFLAGS) -o marsbrot main.o lodepng.o $(LDLIBS)
+marsbrot: main.o lodepng.o mandelbrot.o
+	$(CC) $(LDFLAGS) -o marsbrot main.o mandelbrot.o lodepng.o $(LDLIBS)
 
-xmarsbrot: xmarsbrot.o
-	$(CC) $(LDFLAGS) -o xmarsbrot xmarsbrot.o $(LDLIBS)
+xmarsbrot: xmarsbrot.o mandelbrot.o
+	$(CC) $(LDFLAGS) -o xmarsbrot xmarsbrot.o mandelbrot.o $(LDLIBS)
 
-main.o: main.c lodepng.h
+main.o: main.c lodepng.h mandelbrot.h
 lodepng.o: lodepng.c lodepng.h
-xmarsbrot.o: xmarsbrot.c
+xmarsbrot.o: xmarsbrot.c mandelbrot.h
+mandelbrot.o: mandelbrot.c mandelbrot.h
 
 clean:
 	rm -f marsbrot xmarsbrot *.o
