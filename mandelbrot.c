@@ -74,7 +74,8 @@ void renderMandelbrot(struct mandparams p, MandLineCallback lineCallback,
 	params.lineCallback = lineCallback;
 	params.lineArg = lineArg;
 
-	// Calculate our other parameters
+	// Calculate and initialize our other parameters
+	params.nextrow = 0;
 
 	// At a zoom of 1, we want a horizontal span of 4.5.
 	double hspan = 4.5 / params.zoom;
