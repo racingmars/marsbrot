@@ -34,11 +34,14 @@
 #include <X11/Xaw/Form.h>
 #include <X11/Xaw/Label.h>
 
+#include "mandelbrot.h"
+
 void quit(Widget w, XtPointer client, XtPointer call);
 void draw(Widget w, XtPointer client, XtPointer call);
-void handleclick(Widget w, XtPointer client_data, XEvent *event, 
-                     Boolean *continue_to_dispatch);
+void handleclick(Widget w, XtPointer client_data, XEvent *event,
+                 Boolean *continue_to_dispatch);
 void render();
+void handleLine(int line, int *data, int width, void *arg);
 
 // Some globals to track state of the application
 bool isRendering = false;
@@ -62,49 +65,63 @@ int main(int argc, char **argv)
     // Initialize the mutexes we will use for the X frontend
     if (pthread_mutex_init(&renderMutex, NULL) != 0 ||
         pthread_mutex_init(&drawMutex, NULL) != 0)
-	{
-		fprintf(stderr, "Unable to initialize mutexes\n");
-		return EXIT_FAILURE;
-	}
+    {
+        fprintf(stderr, "Unable to initialize mutexes\n");
+        return EXIT_FAILURE;
+    }
 
     root = XtOpenApplication(&app, "xmarsbrot", NULL, 0, &argc, argv, NULL, applicationShellWidgetClass, NULL, 0);
     form = XtCreateManagedWidget("form", formWidgetClass, root, NULL, 0);
 
     arglc = 0;
-    XtSetArg(arglist[arglc], XtNborderWidth,  0); arglc++;
+    XtSetArg(arglist[arglc], XtNborderWidth, 0);
+    arglc++;
     lbl1 = XtCreateManagedWidget("My label:", labelWidgetClass, form, arglist, arglc);
 
     arglc = 0;
-    XtSetArg(arglist[arglc], XtNfromHoriz,  lbl1); arglc++;
+    XtSetArg(arglist[arglc], XtNfromHoriz, lbl1);
+    arglc++;
     command = XtCreateManagedWidget("Quit", commandWidgetClass, form, arglist, arglc);
     XtAddCallback(command, XtNcallback, quit, app);
 
     arglc = 0;
-    XtSetArg(arglist[arglc], XtNfromHoriz,  command); arglc++;
+    XtSetArg(arglist[arglc], XtNfromHoriz, command);
+    arglc++;
     command2 = XtCreateManagedWidget("draw", commandWidgetClass, form, arglist, arglc);
 
     arglc = 0;
-    XtSetArg(arglist[arglc], XtNfromHoriz,  command2); arglc++;
+    XtSetArg(arglist[arglc], XtNfromHoriz, command2);
+    arglc++;
     cmdRender = XtCreateManagedWidget("Render", commandWidgetClass, form, arglist, arglc);
     XtAddCallback(cmdRender, XtNcallback, render, None);
 
     arglc = 0;
-    XtSetArg(arglist[arglc], XtNfromVert,  command); arglc++;
-    XtSetArg(arglist[arglc], XtNborderWidth,  0); arglc++;
+    XtSetArg(arglist[arglc], XtNfromVert, command);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNborderWidth, 0);
+    arglc++;
     lbl2 = XtCreateManagedWidget("Lab 2:", labelWidgetClass, form, arglist, arglc);
 
     arglc = 0;
-    XtSetArg(arglist[arglc], XtNfromHoriz,  lbl1); arglc++;
-    XtSetArg(arglist[arglc], XtNborderWidth,  0); arglc++;
-    XtSetArg(arglist[arglc], XtNfromVert,  command); arglc++;
+    XtSetArg(arglist[arglc], XtNfromHoriz, lbl1);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNborderWidth, 0);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNfromVert, command);
+    arglc++;
     lbl3 = XtCreateManagedWidget("Lab 3", labelWidgetClass, form, arglist, arglc);
 
     arglc = 0;
-    XtSetArg(arglist[arglc], XtNborderWidth,  0); arglc++;
-    XtSetArg(arglist[arglc], XtNfromVert,  lbl2); arglc++;
-    XtSetArg(arglist[arglc], XtNwidth,  500); arglc++;
-    XtSetArg(arglist[arglc], XtNheight,  500); arglc++;
-    XtSetArg(arglist[arglc], XtNborderWidth,  1); arglc++;
+    XtSetArg(arglist[arglc], XtNborderWidth, 0);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNfromVert, lbl2);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNwidth, 500);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNheight, 500);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNborderWidth, 1);
+    arglc++;
     simple = XtCreateManagedWidget("Simple", simpleWidgetClass, form, arglist, arglc);
 
     XtAddCallback(command2, XtNcallback, draw, simple);
@@ -114,11 +131,10 @@ int main(int argc, char **argv)
 
     XtRealizeWidget(root);
     XtAppMainLoop(app);
-    printf("Done!\n");
 
     pthread_mutex_destroy(&renderMutex);
     pthread_mutex_destroy(&drawMutex);
-    
+
     return EXIT_SUCCESS;
 }
 
@@ -145,14 +161,13 @@ void draw(Widget w, XtPointer client, XtPointer call)
 
 void changeText(Widget w, XtPointer client, XtPointer call)
 {
-
 }
 
-void handleclick(Widget w, XtPointer client_data, XEvent *event, 
-                     Boolean *continue_to_dispatch)
+void handleclick(Widget w, XtPointer client_data, XEvent *event,
+                 Boolean *continue_to_dispatch)
 {
-    XButtonPressedEvent *bp = (XButtonPressedEvent *) event;
-    XExposeEvent *rr = (XExposeEvent *) event;
+    XButtonPressedEvent *bp = (XButtonPressedEvent *)event;
+    XExposeEvent *rr = (XExposeEvent *)event;
     if (event->type == ButtonPress)
     {
         printf("Got click (x, y) = (%d, %d)\n", bp->x, bp->y);
@@ -163,6 +178,12 @@ void handleclick(Widget w, XtPointer client_data, XEvent *event,
         draw(None, client_data, None);
     }
 }
+
+struct drawinfo
+{
+    Display *display;
+    GC gc;
+};
 
 void render(Widget w, XtPointer client, XtPointer call)
 {
@@ -211,27 +232,53 @@ void render(Widget w, XtPointer client, XtPointer call)
         }
     }
 
-    XSetForeground(display, gc, 0xFF0000);
+    struct mandparams params;
+    params.w = 500;
+    params.h = 500;
+    params.zoom = 1.0;
+    params.maxIterations = 1024;
+    params.centerx = -0.5;
+    params.centery = 0;
+    params.numthreads = 1;
 
-    for (x = 0; x < 100; x++)
-    {
-        for (y = 0; y < 100; y++)
-        {
-            XDrawPoint(display, image, gc, x, y);
-        }
-    }
+    struct drawinfo di;
+    di.display = display;
+    di.gc = gc;
 
-    XSetForeground(display, gc, 0xFF44AA);
+    renderMandelbrot(params, &handleLine, &di);
+    printf("**DONE**\n");
 
-    for (x = 100; x < 200; x++)
-    {
-        for (y = 100; y < 200; y++)
-        {
-            XDrawPoint(display, image, gc, x, y);
-        }
-    }
-
-    isRendering = false;
     haveImage = true;
+    isRendering = false;
 }
 
+void handleLine(int line, int *data, int width, void *arg)
+{
+    Display *display;
+    GC gc;
+
+    if (pthread_mutex_lock(&drawMutex) != 0)
+    {
+        fprintf(stderr, "Unable to lock drawMutex\n");
+        return;
+    }
+
+    struct drawinfo *di = arg;
+
+    int x;
+    for (x = 0; x < width; x++)
+    {
+        if (data[x] == 1024)
+        {
+            XSetForeground(di->display, di->gc, 0x000000);
+        }
+        else
+        {
+            XSetForeground(di->display, di->gc, 0xFFFFFF);
+        }
+        XDrawPoint(di->display, image, di->gc, x, line);
+    }
+    free(data);
+
+    pthread_mutex_unlock(&drawMutex);
+}
