@@ -2,13 +2,13 @@
 
 default: marsbrot xmarsbrot
 
-marsbrot: main.o lodepng.o mandelbrot.o
-	$(CC) $(LDFLAGS) -o marsbrot main.o mandelbrot.o lodepng.o $(LDLIBS)
+marsbrot: marsbrot.o lodepng.o mandelbrot.o
+	$(CC) $(LDFLAGS) -o marsbrot marsbrot.o mandelbrot.o lodepng.o $(LDLIBS)
 
 xmarsbrot: xmarsbrot.o mandelbrot.o
 	$(CC) $(LDFLAGS) -o xmarsbrot xmarsbrot.o mandelbrot.o $(LDLIBS)
 
-main.o: main.c lodepng.h mandelbrot.h
+marsbrot.o: marsbrot.c lodepng.h mandelbrot.h
 lodepng.o: lodepng.c lodepng.h
 xmarsbrot.o: xmarsbrot.c mandelbrot.h
 mandelbrot.o: mandelbrot.c mandelbrot.h
