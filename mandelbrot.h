@@ -26,16 +26,24 @@
 /* Request POSIX.1-2001-compliant interfaces. */
 #define _POSIX_C_SOURCE 200112L
 
-struct mandparams {
-	int w, h;          // dimensions of rendered image in pixels
-	double zoom;       // zoom factor; 1.0 is an x span of 4.5
-	int maxIterations; // number of iterations before deciding point is in set
+struct mandparams
+{
+	int w, h;				 // dimensions of rendered image in pixels
+	double zoom;			 // zoom factor; 1.0 is an x span of 4.5
+	int maxIterations;		 // number of iterations before deciding point is in set
 	double centerx, centery; // center coordinates of real and imaginary axes
-	double minx, maxx; // x (real axis) extent
-	double miny, maxy; // y (imaginary axis) extent
-	double pixstep;    // step size between 2 pixels
-	double xratio;     // ratio to translate pixel to x (real) axis
-	double yratio;     // ratio to translate pixel to y (imaginary) axis
+	int numthreads;			 // number of threads to use for computation
 };
+
+typedef void (*MandLineCallback)(
+	int line,
+	int *data,
+	int datapoints,
+	void *arg);
+
+extern void renderMandelbrot(
+	struct mandparams p,
+	MandLineCallback lineCallback,
+	void *lineArg);
 
 #endif // #ifndef _MANDELBROT_H_

@@ -35,14 +35,14 @@
 #define DEFAULT_WIDTH 1920
 #define DEFAULT_ITERATIONS 2500
 
-void writeImage(char *filename, int width, int height, int *buffer, char *title);
+void handleLine(int line, int *data, int datapoints, void *arg);
+void writeImage(char *filename, int width, int height, int maxiterations,
+				int *buffer, char *title);
 
 int *image;
 
 int main(int argc, char **argv)
 {
-	int numthreads = 1;
-	pthread_t *threads;
 	int i;
 
 	struct timespec starttime, stoptime;
@@ -56,6 +56,7 @@ int main(int argc, char **argv)
 	params.maxIterations = DEFAULT_ITERATIONS;
 	params.centerx = -0.5;
 	params.centery = 0;
+	params.numthreads = 1;
 
 	printf("marsbrot, a Mandelbrot Set image renderer.\n\n"
 		   "Copyright (C) 2021 Matthew R. Wilson <mwilson@mattwilson.org>\n\n"
@@ -131,8 +132,9 @@ int main(int argc, char **argv)
 			break;
 		case 't':
 			errno = 0;
-			numthreads = strtol(optarg, NULL, 10);
-			if (errno != 0 || numthreads < 1 || numthreads > 1024)
+			params.numthreads = strtol(optarg, NULL, 10);
+			if (errno != 0 || params.numthreads < 1 ||
+				params.numthreads > 1024)
 			{
 				fprintf(stderr, "Invalid number of threads\n");
 				exit(EXIT_FAILURE);
@@ -167,66 +169,13 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	// At a zoom of 1, we want a horizontal span of 4.5.
-	double hspan = 4.5 / params.zoom;
-	params.minx = params.centerx - (hspan / 2.0);
-	params.maxx = params.centerx + (hspan / 2.0);
-
-	printf("Running with %d threads\n", numthreads);
-	threads = malloc(sizeof *threads * numthreads);
-	if (threads == 0)
-	{
-		fprintf(stderr, "Couldn't allocate memory for threads\n");
-		return (EXIT_FAILURE);
-	}
-
-	// The step of each pixel in the horizontal span will give us the
-	// vertical span.
-	params.pixstep = hspan / params.w;
-	params.miny = params.centery - params.h / 2.0 * params.pixstep;
-	params.maxy = params.centery + params.h / 2.0 * params.pixstep;
-	printf("Center (x,y): (%f,%f)\n", params.centerx, params.centery);
-	printf("X span      : %f %f\n", params.minx, params.maxx);
-	printf("Pixel step  : %f\n", params.pixstep);
-	printf("Y span      : %f %f\n", params.miny, params.maxy);
-
-	params.xratio = (params.maxx - params.minx) / (params.w - 1);
-	params.yratio = (params.maxy - params.miny) / (params.h - 1);
-
-	printf("Dimensions: (%f,%f) (%f,%f)\n",
-		   params.minx, params.maxy, params.maxx, params.miny);
-
-	if (pthread_mutex_init(&mutex, NULL) != 0)
-	{
-		fprintf(stderr, "Unable to initialize mutex\n");
-		return (EXIT_FAILURE);
-	}
-
 	if (clock_gettime(CLOCK_MONOTONIC, &starttime) != 0)
 	{
 		fprintf(stderr, "Unable to get start time\n");
 		return (EXIT_FAILURE);
 	}
 
-	for (i = 0; i < numthreads; i++)
-	{
-		if (pthread_create(&threads[i], NULL, &worker, NULL) != 0)
-		{
-			fprintf(stderr, "Unable to start thread %d\n", i);
-			return (EXIT_FAILURE);
-		}
-	}
-
-	for (i = 0; i < numthreads; i++)
-	{
-		if (pthread_join(threads[i], NULL) != 0)
-		{
-			fprintf(stderr, "Unable to join thread %d\n", i);
-			return (EXIT_FAILURE);
-		}
-	}
-
-	pthread_mutex_destroy(&mutex);
+	renderMandelbrot(params, &handleLine, image);
 
 	if (clock_gettime(CLOCK_MONOTONIC, &stoptime) != 0)
 	{
@@ -235,22 +184,35 @@ int main(int argc, char **argv)
 	}
 
 	printf("Time taken to render: %f\n",
-		((double)stoptime.tv_sec + (double)stoptime.tv_nsec / 1.0e9) -
-		((double)starttime.tv_sec + (double)starttime.tv_nsec / 1.0e9));
+		   ((double)stoptime.tv_sec + (double)stoptime.tv_nsec / 1.0e9) -
+			   ((double)starttime.tv_sec + (double)starttime.tv_nsec / 1.0e9));
 
-	writeImage("output.png", params.w, params.h, image, "Mandelbrot");
+	writeImage("output.png", params.w, params.h, params.maxIterations, image,
+			   "Mandelbrot");
 
 	free(image);
 
 	return 0;
 }
 
-void writeImage(char *filename, int width, int height, int *buffer, char *title)
+void handleLine(int line, int *data, int width, void *arg)
+{
+	int x;
+	for (x = 0; x < width; x++)
+	{
+		((int *)arg)[line * width + x] = data[x];
+	}
+	free(data);
+	return;
+}
+
+void writeImage(char *filename, int width, int height, int maxiterations,
+				int *buffer, char *title)
 {
 	unsigned char *pixdata;
 	int y, x;
 
-	pixdata = malloc(sizeof *pixdata * params.w * params.h * 3);
+	pixdata = malloc(sizeof *pixdata * width * height * 3);
 
 	if (pixdata == 0)
 	{
@@ -258,11 +220,11 @@ void writeImage(char *filename, int width, int height, int *buffer, char *title)
 		exit(EXIT_FAILURE);
 	}
 
-	for (y = 0; y < params.h; y++)
+	for (y = 0; y < height; y++)
 	{
-		for (x = 0; x < params.w; x++)
+		for (x = 0; x < width; x++)
 		{
-			if (image[y * params.w + x] == params.maxIterations)
+			if (image[y * width + x] == maxiterations)
 			{
 				pixdata[3 * width * y + 3 * x + 0] = 0;
 				pixdata[3 * width * y + 3 * x + 1] = 0;
@@ -271,8 +233,8 @@ void writeImage(char *filename, int width, int height, int *buffer, char *title)
 			else
 			{
 				// Map iteration count to 0.0...1.0.
-				double color = (double)image[y * params.w + x] /
-					params.maxIterations;
+				double color = (double)image[y * width + x] /
+							   maxiterations;
 				// Apply non-linear transformation.
 				// Gamma, n=2.5 (x = x^(1/n))
 				color = pow(color, 0.4);
@@ -284,10 +246,8 @@ void writeImage(char *filename, int width, int height, int *buffer, char *title)
 		}
 	}
 
-	unsigned error = lodepng_encode24_file("output.png", pixdata, params.w,
-		params.h);
+	unsigned error = lodepng_encode24_file("output.png", pixdata, width,
+										   height);
 
 	free(pixdata);
 }
-
-
