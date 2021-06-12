@@ -1,15 +1,4 @@
-.POSIX:
 .SUFFIXES:
-
-CC      = gcc
-
-CFLAGS  = -std=c99 -m64 -O3 -pedantic \
-          -D_POSIX_C_SOURCE=200112L \
-          -DLODEPNG_NO_COMPILE_DECODER \
-          -I/opt/X11/include
-
-LDFLAGS = -L/opt/X11/lib
-LDLIBS  = -lpthread -lm -lX11 -lXt -lXaw
 
 default: marsbrot xmarsbrot
 
