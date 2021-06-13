@@ -33,6 +33,8 @@
 #include <X11/Xaw/Command.h>
 #include <X11/Xaw/Form.h>
 #include <X11/Xaw/Label.h>
+#include <X11/Xaw/Paned.h>
+#include <X11/Xaw/AsciiText.h>
 
 #include "mandelbrot.h"
 
@@ -58,8 +60,11 @@ Widget root;
 int main(int argc, char **argv)
 {
     XtAppContext app;
-    Widget form, command, command2, cmdRender, lbl1, lbl2, lbl3, simple;
-    Arg arglist[10];
+    Widget form, command, command2, cmdRender, simple, paneRoot;
+    Widget lblCenter, lblCenterX, lblCenterY, lblZoom, lblIterations;
+    Widget btnZoomPlus2, btnZoomPlus10, btnZoomMinus2, btnZoomMinus10, btnIterationsPlus, btnIterationsMinus;
+    Widget txtCenterX, txtCenterY, txtZoom, txtIterations;
+    Arg arglist[20];
     Cardinal arglc = 0;
 
     // Initialize the mutexes we will use for the X frontend
@@ -70,63 +75,346 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    root = XtOpenApplication(&app, "xmarsbrot", NULL, 0, &argc, argv, NULL, applicationShellWidgetClass, NULL, 0);
-    form = XtCreateManagedWidget("form", formWidgetClass, root, NULL, 0);
+    root = XtOpenApplication(&app, "xmarsbrot", NULL, 0, &argc, argv, NULL, shellWidgetClass, NULL, 0);
+    
+    
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNorientation, XtorientHorizontal);
+    arglc++;
+    paneRoot = XtCreateManagedWidget("pane", panedWidgetClass, root, arglist, arglc);
 
     arglc = 0;
     XtSetArg(arglist[arglc], XtNborderWidth, 0);
     arglc++;
-    lbl1 = XtCreateManagedWidget("My label:", labelWidgetClass, form, arglist, arglc);
+    XtSetArg(arglist[arglc], XtNwidth, 1024);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNheight, 768);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNborderWidth, 1);
+    arglc++;
+    simple = XtCreateManagedWidget("Simple", simpleWidgetClass, paneRoot, arglist, arglc);
 
     arglc = 0;
-    XtSetArg(arglist[arglc], XtNfromHoriz, lbl1);
+    XtSetArg(arglist[arglc], XtNdefaultDistance, 5);
+    arglc++;
+    form = XtCreateManagedWidget("form", formWidgetClass, paneRoot, arglist, arglc);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNleft, XawChainLeft);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNright, XawChainRight);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNwidth, 183);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNheight, 35);
     arglc++;
     command = XtCreateManagedWidget("Quit", commandWidgetClass, form, arglist, arglc);
     XtAddCallback(command, XtNcallback, quit, app);
 
     arglc = 0;
-    XtSetArg(arglist[arglc], XtNfromHoriz, command);
+    XtSetArg(arglist[arglc], XtNleft, XawChainLeft);
     arglc++;
-    command2 = XtCreateManagedWidget("draw", commandWidgetClass, form, arglist, arglc);
+    XtSetArg(arglist[arglc], XtNright, XawChainRight);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNfromVert, command);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNwidth, 183);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNheight, 35);
+    arglc++;
+    command2 = XtCreateManagedWidget("Draw", commandWidgetClass, form, arglist, arglc);
 
     arglc = 0;
-    XtSetArg(arglist[arglc], XtNfromHoriz, command2);
+    XtSetArg(arglist[arglc], XtNleft, XawChainLeft);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNright, XawChainRight);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNfromVert, command2);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNwidth, 183);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNheight, 35);
     arglc++;
     cmdRender = XtCreateManagedWidget("Render", commandWidgetClass, form, arglist, arglc);
     XtAddCallback(cmdRender, XtNcallback, render, None);
 
     arglc = 0;
-    XtSetArg(arglist[arglc], XtNfromVert, command);
+    XtSetArg(arglist[arglc], XtNfromVert, cmdRender);
     arglc++;
     XtSetArg(arglist[arglc], XtNborderWidth, 0);
     arglc++;
-    lbl2 = XtCreateManagedWidget("Lab 2:", labelWidgetClass, form, arglist, arglc);
+    XtSetArg(arglist[arglc], XtNwidth, 183);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNleft, XawChainLeft);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNright, XawChainRight);
+    arglc++;
+    lblCenter = XtCreateManagedWidget("Center Coordinates", labelWidgetClass, form, arglist, arglc);
 
     arglc = 0;
-    XtSetArg(arglist[arglc], XtNfromHoriz, lbl1);
+    XtSetArg(arglist[arglc], XtNfromVert, lblCenter);
     arglc++;
     XtSetArg(arglist[arglc], XtNborderWidth, 0);
     arglc++;
-    XtSetArg(arglist[arglc], XtNfromVert, command);
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
     arglc++;
-    lbl3 = XtCreateManagedWidget("Lab 3", labelWidgetClass, form, arglist, arglc);
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNleft, XawChainLeft);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNright, XawChainLeft);
+    arglc++;
+    lblCenterX = XtCreateManagedWidget("X:", labelWidgetClass, form, arglist, arglc);
 
     arglc = 0;
-    XtSetArg(arglist[arglc], XtNborderWidth, 0);
+    XtSetArg(arglist[arglc], XtNfromVert, lblCenter);
     arglc++;
-    XtSetArg(arglist[arglc], XtNfromVert, lbl2);
-    arglc++;
-    XtSetArg(arglist[arglc], XtNwidth, 500);
-    arglc++;
-    XtSetArg(arglist[arglc], XtNheight, 500);
+    XtSetArg(arglist[arglc], XtNfromHoriz, lblCenterX);
     arglc++;
     XtSetArg(arglist[arglc], XtNborderWidth, 1);
     arglc++;
-    simple = XtCreateManagedWidget("Simple", simpleWidgetClass, form, arglist, arglc);
+    XtSetArg(arglist[arglc], XtNwidth, 183);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNleft, XawChainLeft);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNright, XawChainRight);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNeditType, XawtextEdit);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNstring, "-0.5");
+    arglc++;
+    txtCenterX = XtCreateManagedWidget("xinput", asciiTextWidgetClass, form, arglist, arglc);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNfromVert, lblCenterX);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNborderWidth, 0);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNleft, XawChainLeft);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNright, XawChainLeft);
+    arglc++;
+    lblCenterY = XtCreateManagedWidget("Y:", labelWidgetClass, form, arglist, arglc);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNfromVert, lblCenterX);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNfromHoriz, lblCenterY);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNborderWidth, 1);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNwidth, 183);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNleft, XawChainLeft);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNright, XawChainRight);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNeditType, XawtextEdit);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNstring, "0");
+    arglc++;
+    txtCenterY = XtCreateManagedWidget("yinput", asciiTextWidgetClass, form, arglist, arglc);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNfromVert, lblCenterY);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNborderWidth, 0);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNwidth, 183);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNleft, XawChainLeft);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNright, XawChainRight);
+    arglc++;
+    lblZoom = XtCreateManagedWidget("Zoom", labelWidgetClass, form, arglist, arglc);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNfromVert, lblZoom);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNborderWidth, 1);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNwidth, 181);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNleft, XawChainLeft);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNright, XawChainRight);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNeditType, XawtextEdit);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNstring, "1");
+    arglc++;
+    txtZoom = XtCreateManagedWidget("zoom", asciiTextWidgetClass, form, arglist, arglc);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNleft, XawChainLeft);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNfromVert, txtZoom);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNwidth, 40);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNheight, 30);
+    arglc++;
+    btnZoomMinus10 = XtCreateManagedWidget("-10x", commandWidgetClass, form, arglist, arglc);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNfromVert, txtZoom);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNfromHoriz, btnZoomMinus10);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNwidth, 40);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNheight, 30);
+    arglc++;
+    btnZoomMinus2 = XtCreateManagedWidget("-2x", commandWidgetClass, form, arglist, arglc);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNfromVert, txtZoom);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNfromHoriz, btnZoomMinus2);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNwidth, 40);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNheight, 30);
+    arglc++;
+    btnZoomPlus2 = XtCreateManagedWidget("+2x", commandWidgetClass, form, arglist, arglc);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNright, XawChainRight);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNfromVert, txtZoom);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNfromHoriz, btnZoomPlus2);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNwidth, 40);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNheight, 30);
+    arglc++;
+    btnZoomPlus10 = XtCreateManagedWidget("+10x", commandWidgetClass, form, arglist, arglc);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNfromVert, btnZoomPlus10);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNborderWidth, 0);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNwidth, 183);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNleft, XawChainLeft);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNright, XawChainRight);
+    arglc++;
+    lblIterations = XtCreateManagedWidget("Max Iterations", labelWidgetClass, form, arglist, arglc);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNfromVert, lblIterations);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNborderWidth, 1);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNwidth, 181);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNleft, XawChainLeft);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNright, XawChainRight);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNeditType, XawtextEdit);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNstring, "1024");
+    arglc++;
+    txtIterations = XtCreateManagedWidget("iterations", asciiTextWidgetClass, form, arglist, arglc);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNleft, XawChainLeft);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNfromVert, txtIterations);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNwidth, 87);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNheight, 30);
+    arglc++;
+    btnIterationsMinus = XtCreateManagedWidget("-128", commandWidgetClass, form, arglist, arglc);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNright, XawChainRight);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNfromVert, txtIterations);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNfromHoriz, btnIterationsMinus);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNwidth, 87);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNheight, 30);
+    arglc++;
+    btnIterationsPlus = XtCreateManagedWidget("+128", commandWidgetClass, form, arglist, arglc);
 
     XtAddCallback(command2, XtNcallback, draw, simple);
 
-    //XtAddCallback(simple, XtNcallback, handleclick, None);
     XtAddEventHandler(simple, ButtonPressMask | ExposureMask, False, handleclick, simple);
 
     XtRealizeWidget(root);
@@ -270,11 +558,11 @@ void handleLine(int line, int *data, int width, void *arg)
     {
         if (data[x] == 1024)
         {
-            XSetForeground(di->display, di->gc, 0x000000);
+            XSetForeground(di->display, di->gc, 0xFFFFFF);
         }
         else
         {
-            XSetForeground(di->display, di->gc, 0xFFFFFF);
+            XSetForeground(di->display, di->gc, 0x000000);
         }
         XDrawPoint(di->display, image, di->gc, x, line);
     }
