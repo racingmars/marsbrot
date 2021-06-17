@@ -20,9 +20,6 @@
 	along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 
-/* Request POSIX.1-2001-compliant interfaces. */
-#define _POSIX_C_SOURCE 200112L
-
 #include <math.h>
 #include <pthread.h>
 #include <stdio.h>

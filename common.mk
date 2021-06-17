@@ -1,6 +1,6 @@
 .SUFFIXES:
 
-default: marsbrot xmarsbrot
+all: marsbrot xmarsbrot
 
 marsbrot: marsbrot.o lodepng.o mandelbrot.o
 	$(CC) $(LDFLAGS) -o marsbrot marsbrot.o mandelbrot.o lodepng.o $(LDLIBS)
