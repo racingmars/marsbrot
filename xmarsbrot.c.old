@@ -1,0 +1,572 @@
+/*
+    X Windows interface to marsbrot.
+    
+	marsbrot, a Mandelbrot Set image renderer.
+	Copyright (C) 2021 Matthew R. Wilson <mwilson@mattwilson.org>
+
+	This program is free software: you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <https://www.gnu.org/licenses/>.
+*/
+
+/* Request POSIX.1-2001-compliant interfaces. */
+#define _POSIX_C_SOURCE 200112L
+
+#include <pthread.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <X11/StringDefs.h>
+#include <X11/Intrinsic.h>
+#include <X11/Shell.h>
+#include <X11/Xaw/Command.h>
+#include <X11/Xaw/Form.h>
+#include <X11/Xaw/Label.h>
+#include <X11/Xaw/Paned.h>
+#include <X11/Xaw/AsciiText.h>
+
+#include "mandelbrot.h"
+
+void quit(Widget w, XtPointer client, XtPointer call);
+void draw(Widget w, XtPointer client, XtPointer call);
+void handleclick(Widget w, XtPointer client_data, XEvent *event,
+                 Boolean *continue_to_dispatch);
+void render();
+void handleLine(int line, int *data, int width, void *arg);
+
+// Some globals to track state of the application
+bool isRendering = false;
+bool haveImage = false;
+pthread_mutex_t renderMutex;
+pthread_mutex_t drawMutex;
+
+// The pixmap which contains the current mandelbrot rendered image
+Pixmap image = 0;
+
+// Root window
+Widget root;
+
+int main(int argc, char **argv)
+{
+    XtAppContext app;
+    Widget form, command, command2, cmdRender, simple, paneRoot;
+    Widget lblCenter, lblCenterX, lblCenterY, lblZoom, lblIterations;
+    Widget btnZoomPlus2, btnZoomPlus10, btnZoomMinus2, btnZoomMinus10, btnIterationsPlus, btnIterationsMinus;
+    Widget txtCenterX, txtCenterY, txtZoom, txtIterations;
+    Arg arglist[20];
+    Cardinal arglc = 0;
+
+    // Initialize the mutexes we will use for the X frontend
+    if (pthread_mutex_init(&renderMutex, NULL) != 0 ||
+        pthread_mutex_init(&drawMutex, NULL) != 0)
+    {
+        fprintf(stderr, "Unable to initialize mutexes\n");
+        return EXIT_FAILURE;
+    }
+
+    root = XtOpenApplication(&app, "xmarsbrot", NULL, 0, &argc, argv, NULL, shellWidgetClass, NULL, 0);
+    
+    
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNorientation, XtorientHorizontal);
+    arglc++;
+    paneRoot = XtCreateManagedWidget("pane", panedWidgetClass, root, arglist, arglc);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNborderWidth, 0);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNwidth, 1024);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNheight, 768);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNborderWidth, 1);
+    arglc++;
+    simple = XtCreateManagedWidget("Simple", simpleWidgetClass, paneRoot, arglist, arglc);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNdefaultDistance, 5);
+    arglc++;
+    form = XtCreateManagedWidget("form", formWidgetClass, paneRoot, arglist, arglc);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNleft, XawChainLeft);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNright, XawChainRight);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNwidth, 183);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNheight, 35);
+    arglc++;
+    command = XtCreateManagedWidget("Quit", commandWidgetClass, form, arglist, arglc);
+    XtAddCallback(command, XtNcallback, quit, app);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNleft, XawChainLeft);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNright, XawChainRight);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNfromVert, command);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNwidth, 183);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNheight, 35);
+    arglc++;
+    command2 = XtCreateManagedWidget("Draw", commandWidgetClass, form, arglist, arglc);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNleft, XawChainLeft);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNright, XawChainRight);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNfromVert, command2);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNwidth, 183);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNheight, 35);
+    arglc++;
+    cmdRender = XtCreateManagedWidget("Render", commandWidgetClass, form, arglist, arglc);
+    XtAddCallback(cmdRender, XtNcallback, render, None);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNfromVert, cmdRender);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNborderWidth, 0);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNwidth, 183);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNleft, XawChainLeft);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNright, XawChainRight);
+    arglc++;
+    lblCenter = XtCreateManagedWidget("Center Coordinates", labelWidgetClass, form, arglist, arglc);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNfromVert, lblCenter);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNborderWidth, 0);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNleft, XawChainLeft);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNright, XawChainLeft);
+    arglc++;
+    lblCenterX = XtCreateManagedWidget("X:", labelWidgetClass, form, arglist, arglc);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNfromVert, lblCenter);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNfromHoriz, lblCenterX);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNborderWidth, 1);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNwidth, 183);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNleft, XawChainLeft);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNright, XawChainRight);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNeditType, XawtextEdit);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNstring, "-0.5");
+    arglc++;
+    txtCenterX = XtCreateManagedWidget("xinput", asciiTextWidgetClass, form, arglist, arglc);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNfromVert, lblCenterX);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNborderWidth, 0);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNleft, XawChainLeft);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNright, XawChainLeft);
+    arglc++;
+    lblCenterY = XtCreateManagedWidget("Y:", labelWidgetClass, form, arglist, arglc);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNfromVert, lblCenterX);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNfromHoriz, lblCenterY);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNborderWidth, 1);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNwidth, 183);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNleft, XawChainLeft);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNright, XawChainRight);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNeditType, XawtextEdit);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNstring, "0");
+    arglc++;
+    txtCenterY = XtCreateManagedWidget("yinput", asciiTextWidgetClass, form, arglist, arglc);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNfromVert, lblCenterY);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNborderWidth, 0);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNwidth, 183);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNleft, XawChainLeft);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNright, XawChainRight);
+    arglc++;
+    lblZoom = XtCreateManagedWidget("Zoom", labelWidgetClass, form, arglist, arglc);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNfromVert, lblZoom);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNborderWidth, 1);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNwidth, 181);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNleft, XawChainLeft);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNright, XawChainRight);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNeditType, XawtextEdit);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNstring, "1");
+    arglc++;
+    txtZoom = XtCreateManagedWidget("zoom", asciiTextWidgetClass, form, arglist, arglc);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNleft, XawChainLeft);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNfromVert, txtZoom);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNwidth, 40);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNheight, 30);
+    arglc++;
+    btnZoomMinus10 = XtCreateManagedWidget("-10x", commandWidgetClass, form, arglist, arglc);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNfromVert, txtZoom);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNfromHoriz, btnZoomMinus10);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNwidth, 40);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNheight, 30);
+    arglc++;
+    btnZoomMinus2 = XtCreateManagedWidget("-2x", commandWidgetClass, form, arglist, arglc);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNfromVert, txtZoom);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNfromHoriz, btnZoomMinus2);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNwidth, 40);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNheight, 30);
+    arglc++;
+    btnZoomPlus2 = XtCreateManagedWidget("+2x", commandWidgetClass, form, arglist, arglc);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNright, XawChainRight);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNfromVert, txtZoom);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNfromHoriz, btnZoomPlus2);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNwidth, 40);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNheight, 30);
+    arglc++;
+    btnZoomPlus10 = XtCreateManagedWidget("+10x", commandWidgetClass, form, arglist, arglc);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNfromVert, btnZoomPlus10);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNborderWidth, 0);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNwidth, 183);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNleft, XawChainLeft);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNright, XawChainRight);
+    arglc++;
+    lblIterations = XtCreateManagedWidget("Max Iterations", labelWidgetClass, form, arglist, arglc);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNfromVert, lblIterations);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNborderWidth, 1);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNwidth, 181);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNleft, XawChainLeft);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNright, XawChainRight);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNeditType, XawtextEdit);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNstring, "1024");
+    arglc++;
+    txtIterations = XtCreateManagedWidget("iterations", asciiTextWidgetClass, form, arglist, arglc);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNleft, XawChainLeft);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNfromVert, txtIterations);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNwidth, 87);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNheight, 30);
+    arglc++;
+    btnIterationsMinus = XtCreateManagedWidget("-128", commandWidgetClass, form, arglist, arglc);
+
+    arglc = 0;
+    XtSetArg(arglist[arglc], XtNtop, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNbottom, XawChainTop);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNright, XawChainRight);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNfromVert, txtIterations);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNfromHoriz, btnIterationsMinus);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNwidth, 87);
+    arglc++;
+    XtSetArg(arglist[arglc], XtNheight, 30);
+    arglc++;
+    btnIterationsPlus = XtCreateManagedWidget("+128", commandWidgetClass, form, arglist, arglc);
+
+    XtAddCallback(command2, XtNcallback, draw, simple);
+
+    XtAddEventHandler(simple, ButtonPressMask | ExposureMask, False, handleclick, simple);
+
+    XtRealizeWidget(root);
+    XtAppMainLoop(app);
+
+    pthread_mutex_destroy(&renderMutex);
+    pthread_mutex_destroy(&drawMutex);
+
+    return EXIT_SUCCESS;
+}
+
+void quit(Widget w, XtPointer client, XtPointer call)
+{
+    XtAppSetExitFlag(client);
+}
+
+void draw(Widget w, XtPointer client, XtPointer call)
+{
+    Display *display;
+    Drawable window;
+    GC gc;
+    int x, y;
+
+    if (haveImage)
+    {
+        display = XtDisplay(client);
+        window = XtWindow(client);
+        gc = XCreateGC(display, window, None, None);
+        XCopyArea(display, image, window, gc, 0, 0, 500, 500, 0, 0);
+    }
+}
+
+void changeText(Widget w, XtPointer client, XtPointer call)
+{
+}
+
+void handleclick(Widget w, XtPointer client_data, XEvent *event,
+                 Boolean *continue_to_dispatch)
+{
+    XButtonPressedEvent *bp = (XButtonPressedEvent *)event;
+    XExposeEvent *rr = (XExposeEvent *)event;
+    if (event->type == ButtonPress)
+    {
+        printf("Got click (x, y) = (%d, %d)\n", bp->x, bp->y);
+    }
+    else if (event->type == Expose)
+    {
+        printf("Got resize: %d x %d\n", rr->height, rr->width);
+        draw(None, client_data, None);
+    }
+}
+
+struct drawinfo
+{
+    Display *display;
+    GC gc;
+};
+
+void render(Widget w, XtPointer client, XtPointer call)
+{
+    Display *display;
+    Screen *screen;
+    Drawable window;
+    GC gc;
+    int x, y;
+
+    // Don't do anything if we're already rendering
+    if (pthread_mutex_lock(&renderMutex) != 0)
+    {
+        fprintf(stderr, "Unable to lock renderMutex\n");
+        return;
+    }
+
+    if (isRendering)
+    {
+        pthread_mutex_unlock(&renderMutex);
+        return;
+    }
+
+    isRendering = true;
+    pthread_mutex_unlock(&renderMutex);
+
+    printf("RENDERING\n");
+
+    display = XtDisplay(root);
+    window = XtWindow(root);
+    screen = XtScreen(root);
+
+    if (image)
+    {
+        XFreePixmap(display, image);
+    }
+
+    image = XCreatePixmap(display, RootWindowOfScreen(XtScreen(root)), 500, 500, DefaultDepthOfScreen(XtScreen(root)));
+
+    gc = XCreateGC(display, image, None, None);
+    XSetForeground(display, gc, 0x000000);
+    for (x = 0; x < 500; x++)
+    {
+        for (y = 0; y < 500; y++)
+        {
+            XDrawPoint(display, image, gc, x, y);
+        }
+    }
+
+    struct mandparams params;
+    params.w = 500;
+    params.h = 500;
+    params.zoom = 1.0;
+    params.maxIterations = 1024;
+    params.centerx = -0.5;
+    params.centery = 0;
+    params.numthreads = 1;
+
+    struct drawinfo di;
+    di.display = display;
+    di.gc = gc;
+
+    renderMandelbrot(params, &handleLine, &di);
+    printf("**DONE**\n");
+
+    haveImage = true;
+    isRendering = false;
+}
+
+void handleLine(int line, int *data, int width, void *arg)
+{
+    Display *display;
+    GC gc;
+
+    if (pthread_mutex_lock(&drawMutex) != 0)
+    {
+        fprintf(stderr, "Unable to lock drawMutex\n");
+        return;
+    }
+
+    struct drawinfo *di = arg;
+
+    int x;
+    for (x = 0; x < width; x++)
+    {
+        if (data[x] == 1024)
+        {
+            XSetForeground(di->display, di->gc, 0xFFFFFF);
+        }
+        else
+        {
+            XSetForeground(di->display, di->gc, 0x000000);
+        }
+        XDrawPoint(di->display, image, di->gc, x, line);
+    }
+    free(data);
+
+    pthread_mutex_unlock(&drawMutex);
+}
