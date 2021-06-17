@@ -34,6 +34,8 @@ struct dim {
 
 struct dim handleRedraw(Display *dpy, Window win, int screen);
 void handleClick(XButtonPressedEvent *bp);
+void fonttest(Display *dpy);
+void getFontName(Display *dpy, char *fontname, int n);
 
 int main(int argc, char **argv) {
     Display *dpy;
@@ -42,6 +44,7 @@ int main(int argc, char **argv) {
     XEvent e;
     bool quit = false;
     struct dim mandRegion;
+    char fontname[STR_BUF_LEN];
 
     dpy = XOpenDisplay(NULL);
     if (dpy == NULL)
@@ -49,6 +52,10 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Cannot open display\n");
         exit(1);
     }
+
+    fonttest(dpy);
+    getFontName(dpy, fontname, STR_BUF_LEN);
+    printf("Returned font name: %s\n", fontname);
 
     screen = DefaultScreen(dpy);
     win = XCreateSimpleWindow(dpy, RootWindow(dpy, screen), 10, 10, 660,
@@ -88,16 +95,31 @@ int main(int argc, char **argv) {
 struct dim handleRedraw(Display *dpy, Window win, int screen) {
     XWindowAttributes wa;
     GC gc;
+    XGCValues gcv;
+    XFontStruct *fontinfo;
+    XCharStruct xcs;
     char buf[STR_BUF_LEN];
     struct dim mandRegion;
+    int a;
+    Font f;
 
     gc = DefaultGC(dpy, screen);
+    f = XLoadFont(dpy, "-xos4-terminus-medium-r-normal--16-160-72-72-c-80-iso10646-1");
 
     XGetWindowAttributes(dpy, win, &wa);
     snprintf(buf, STR_BUF_LEN, "Window size: %dx%d", wa.width, wa.height);
 
     XClearWindow(dpy, win);
+    XSetForeground(dpy, gc, 0);
+    XFillRectangle(dpy, win, gc, 0, 0, wa.width, wa.height);
+    XSetForeground(dpy, gc, 0xffffff);
+    XSetFont(dpy, gc, f);
     XDrawString(dpy, win, gc, 10, 20, buf, strlen(buf));
+
+    XGetGCValues(dpy, gc, GCFont, &gcv);
+    //fontinfo = XQueryFont(dpy, gcv.font);
+    //printf("Font: %p\n", fontinfo);
+    //XTextExtents(fontinfo, "Test", 4, &a, &a, &a, &xcs);
 
     mandRegion.x = wa.width;
     mandRegion.y = wa.height;
@@ -105,4 +127,43 @@ struct dim handleRedraw(Display *dpy, Window win, int screen) {
 
 void handleClick(XButtonPressedEvent *bp) {
     printf("Got click (x, y) = (%d, %d)\n", bp->x, bp->y);
+}
+
+void fonttest(Display *dpy) {
+    char **fonts;
+    int howmany, i;
+
+    fonts = XListFonts(dpy, "-*-lucidatypewriter-medium-r-normal-*-*-140-*", 100, &howmany);
+    for (i=0; i<howmany; i++) {
+        printf("Font: %s\n", fonts[i]);
+    }
+    if (fonts != 0) {
+        XFreeFontNames(fonts);
+    }
+}
+
+void getFontName(Display *dpy, char *fontname, int n) {
+    char **fonts;
+    int len, i;
+
+    char *preferences[] = {
+        "-*-terminus-medium-r-normal-*-*-140-*-*-*-*-iso10646-1",
+        "-*-terminus-medium-r-normal-*-*-140-*-*-*-*-iso8859-1",
+        "-*-lucidatypewriter-medium-r-normal-*-*-140-*-*-*-*-iso10646-1",
+        "-*-lucidatypewriter-medium-r-normal-*-*-140-*-*-*-*-iso8859-1",
+        "-*-courier-medium-r-normal-*-*-140-*",
+        0
+    };
+
+    for (i=0; preferences[i]!=0; i++) {
+        fonts = XListFonts(dpy, preferences[i], 1, &len);
+        if (len>0) {
+            // We found a font we can use!
+            strncpy(fontname, fonts[0], n);
+            XFreeFontNames(fonts);
+            break;
+        }
+        XFreeFontNames(fonts);
+    }
+
 }
