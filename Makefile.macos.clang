@@ -1,0 +1,13 @@
+.POSIX:
+
+CC      = clang
+
+CFLAGS  = -std=c99 -m64 -O3  \
+          -D_POSIX_C_SOURCE=200112L \
+          -DLODEPNG_NO_COMPILE_DECODER \
+          -I/opt/X11/include
+
+LDFLAGS = -L/opt/X11/lib
+LDLIBS  = -lm -lX11 -lXt -lXaw
+
+include common.mk
