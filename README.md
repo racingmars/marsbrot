@@ -3,6 +3,12 @@ marsbrot
 
 This is a simple Mandelbrot Set image rendering program developed by Matthew Wilson, a.k.a. racingmars. While the world doesn't need any more fractal generators, more developers should try writing them.
 
+*The X11 frontend (xmarsbrot) doesn't do anything yet... just ignore it.*
+
+To build, I recommend creating a Makefile symlink to the makefile you usually wish to use (e.g. `ln -s Makefile.linux.gcc Makefile`) then just run `make`.
+
+Further documentation coming soon.
+
 LodePNG PNG library
 -------------------
 
