@@ -36,8 +36,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 References
 ----------
 
-http://warp.povusers.org/Mandelbrot/
-https://en.wikipedia.org/wiki/Plotting_algorithms_for_the_Mandelbrot_set
-https://www.math.univ-toulouse.fr/~cheritat/wiki-draw/index.php/Mandelbrot_set
-http://fractalforums.com/programming/newbie-how-to-map-colors-in-the-mandelbrot-set/
-http://www.stefanbion.de/fraktal-generator/colormapping/index.htm
+ - http://warp.povusers.org/Mandelbrot/
+ - https://en.wikipedia.org/wiki/Plotting_algorithms_for_the_Mandelbrot_set
+ - https://www.math.univ-toulouse.fr/~cheritat/wiki-draw/index.php/Mandelbrot_set
+ - http://fractalforums.com/programming/newbie-how-to-map-colors-in-the-mandelbrot-set/
+ - http://www.stefanbion.de/fraktal-generator/colormapping/index.htm
+
+I'm mainly interested in keeping this cross-platform/cross-architecture clean and strict c99 and POSIX compliant. But it might be interesting to play with AVX instructions someday, so keeping some links handy:
+
+ - https://software.intel.com/sites/landingpage/IntrinsicsGuide/#expand=3922,3919&text=mul_pd
+ - https://software.intel.com/content/dam/develop/external/us/en/documents/intro-to-intel-avx-183287.pdf
+ - https://www.polarnick.com/blogs/other/cpu/gpu/sse/opencl/openmp/2016/10/01/mandelbrot-set-sse-opencl.html
