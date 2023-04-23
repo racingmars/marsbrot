@@ -2,7 +2,7 @@
 	Command-line interface to marsbrot.
 
 	marsbrot, a Mandelbrot Set image renderer.
-	Copyright (C) 2021 Matthew R. Wilson <mwilson@mattwilson.org>
+	Copyright (C) 2021, 2023 Matthew R. Wilson <mwilson@mattwilson.org>
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -56,7 +56,7 @@ int main(int argc, char **argv)
 	params.numthreads = 1;
 
 	printf("marsbrot, a Mandelbrot Set image renderer.\n\n"
-		   "Copyright (C) 2021 Matthew R. Wilson <mwilson@mattwilson.org>\n\n"
+		   "Copyright (C) 2021, 2023 Matthew R. Wilson <mwilson@mattwilson.org>\n\n"
 		   "This program is free software: you can redistribute it and/or modify\n"
 		   "it under the terms of the GNU General Public License as published by\n"
 		   "the Free Software Foundation, either version 3 of the License, or\n"
@@ -206,8 +206,16 @@ void handleLine(int line, int *data, int width, void *arg)
 void writeImage(char *filename, int width, int height, int maxiterations,
 				int *buffer, char *title)
 {
+	unsigned long color_map[256];
 	unsigned char *pixdata;
 	int y, x;
+	int i;
+	unsigned long tmp_color;
+
+	/* Fill the color map */
+	for(i=0; i<256; i++) {
+		color_map[i] = mandel_col((uint8_t)i);
+	}
 
 	pixdata = malloc(sizeof *pixdata * width * height * 3);
 
@@ -221,25 +229,24 @@ void writeImage(char *filename, int width, int height, int maxiterations,
 	{
 		for (x = 0; x < width; x++)
 		{
+			// If we didn't escape, color the pixel for this sample black.
 			if (image[y * width + x] == maxiterations)
 			{
 				pixdata[3 * width * y + 3 * x + 0] = 0;
 				pixdata[3 * width * y + 3 * x + 1] = 0;
 				pixdata[3 * width * y + 3 * x + 2] = 0;
+				continue;
 			}
-			else
-			{
-				// Map iteration count to 0.0...1.0.
-				double color = (double)image[y * width + x] /
-							   maxiterations;
-				// Apply non-linear transformation.
-				// Gamma, n=2.5 (x = x^(1/n))
-				color = pow(color, 0.4);
-				int colorint = color * 255;
-				pixdata[3 * width * y + 3 * x + 0] = colorint;
-				pixdata[3 * width * y + 3 * x + 1] = 0;
-				pixdata[3 * width * y + 3 * x + 2] = 0;
-			}
+
+			// Otherwise, grab from the color map based on the lower byte of
+			// the iteration count.
+			tmp_color = color_map[ (uint8_t)(image[y * width + x] & 0xff)];
+			pixdata[3 * width * y + 3 * x + 0] =
+				(uint8_t)( (tmp_color&0xff0000) >> 16 ); // R
+			pixdata[3 * width * y + 3 * x + 1] =
+				(uint8_t)( (tmp_color&0x00ff00) >> 8 );	 // G
+			pixdata[3 * width * y + 3 * x + 2] =
+				(uint8_t)(tmp_color&0x0000ff);			 // B
 		}
 	}
 

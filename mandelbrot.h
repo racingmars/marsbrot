@@ -4,7 +4,7 @@
     can use to generate the mandelbrot.
 
 	marsbrot, a Mandelbrot Set image renderer.
-	Copyright (C) 2021 Matthew R. Wilson <mwilson@mattwilson.org>
+	Copyright (C) 2021, 2023 Matthew R. Wilson <mwilson@mattwilson.org>
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -26,6 +26,8 @@
 /* Request POSIX.1-2001-compliant interfaces. */
 #define _POSIX_C_SOURCE 200112L
 
+#include <stdint.h>
+
 struct mandparams
 {
 	int w, h;				 // dimensions of rendered image in pixels
@@ -45,5 +47,7 @@ extern void renderMandelbrot(
 	struct mandparams p,
 	MandLineCallback lineCallback,
 	void *lineArg);
+
+extern unsigned long mandel_col ( uint8_t height );
 
 #endif // #ifndef _MANDELBROT_H_
