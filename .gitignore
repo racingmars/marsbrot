@@ -1,9 +1,0 @@
-marsbrot
-xmarsbrot
-output.*
-*.o
-
-.vscode
-
-# Ignore Makefile so you can make a symlink to your platform-specific makefile
-Makefile
